@@ -1,0 +1,24 @@
+{
+    "name": "Inbox Assist",
+    "description": "An Outlook extension to help you go through your emails faster.",
+    "version": "0.1",
+    "manifest_version": 3,
+    "icons": {
+        "16": "icon/outlook.webp",
+        "32": "icon/outlook.webp",
+        "48": "icon/outlook.webp",
+        "128": "icon/outlook.webp"
+    },
+    "action": {
+        "default_popup": "html/popup.html"
+    },
+    "content_scripts": [
+        {
+            "js": ["js/content.js"],
+            "css": ["css/content.css"],
+            "matches": [
+                "https://outlook.cloud.microsoft/mail/*"
+            ]
+        }
+    ]
+}
