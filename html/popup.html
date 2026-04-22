@@ -1,14 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="../css/popup.css" />
-  </head>
-  <body>
-    <h1>InboxAssist</h1>
-    <button type="button">Button 1</button>
-    <button type="button">Button 2</button>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inbox Assist</title>
+  <link href="../css/popup.css" rel="stylesheet" />
+  
+  <!-- Swap font out for a better one and readjust weights -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" 
+        rel="stylesheet">
+</head>
+
+<body>
+  <div class="main">
+    <div class="header">
+      <!-- Put icon here -->
+      <h1>InboxAssist</h1>
+    </div>
+
+    <div class="top-options-container">
+      <!-- Add SVGs for all buttons -->
+      <button class="big-button">
+        <span>Summarize</span>
+      </button>
+      <button class="big-button">
+        <span>Search</span>
+      </button>
+      <button class="big-button">
+        <span>Q&A</span>
+      </button>
+      <button class="big-button">
+        <span>Compose</span>
+      </button>
+    </div>
+
+    <div class="options">
+      <div class="left-options">
+        <div class="option-container">
+          <!-- Change radio styling -->
+          <div class="option" id="sample_name">
+            <input type="radio" id="off" name="sample_name">
+            <input type="radio" id="on" name="sample_name">
+            <div class="slider">
+              <div class="slider-knob"></div>
+              <div class="slider-bg"></div>
+            </div>
+            <span class="option-name">Sample option</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="right-options">
+        <div class="option-container">
+          <div class="option" id="test_name">
+            <input type="radio" id="off" name="test_name">
+            <input type="radio" id="on" name="test_name">
+            <div class="slider">
+              <div class="slider-knob"></div>
+              <div class="slider-bg"></div>
+            </div>
+            <span class="option-name">Right option</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="../js/popup.js"></script>
+
+</body>
 </html>

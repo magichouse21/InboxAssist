@@ -1,5 +1,100 @@
+:root {
+    --container-bg: #e9e8e8;
+    --inputbg: #161616;
+}
+
 body {
-    flex-direction: column;
-    justify-content: center;
+    width: 500px;
+    height: 100%;
+    color: #161616;
+    background: #97b8e4;
+    font-family: 'Lato';
+    overflow-x: hidden;
+}
+
+button {
+    font-family: 'Lato', sans-serif;
+    cursor: pointer;
+}
+
+h1, h2, p, body{
+    margin:0;
+    padding:0;
+}
+
+h1 {
+    font-size: 30px;
+}
+
+.header {
+    font-size: 16px;
+    display: flex;
     align-items: center;
+    gap:12px;
+    margin-bottom: 6px;
+}
+
+.header h1 {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.main {
+    position: relative;
+    padding: 10px;
+}
+
+.option {
+    display: flex;
+    align-items: center;
+}
+
+.option span {
+    margin-left: 6px;
+}
+
+.left-options {
+    margin-right: 6px;
+}
+
+.left-options, .right-options {
+    width: 50%;
+}
+
+.slider {
+    cursor: pointer;
+    height: 20px;
+}
+
+.option-container {
+    font-size: 12px;
+    margin-top: 8px;
+    background: var(--container-bg);
+    padding: 20px;
+    border-radius: 12px;
+}
+
+.top-options-container {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(4, 1fr);
+    margin-top: 10px;
+}
+
+.options {
+    display: flex;
+    justify-content: space-between;
+}
+
+.options .option-container {
+    padding: 12px;
+}
+
+.big-button {
+    border: none;
+    border-radius: 6px;
+    background: var(--container-bg);
+    color: #161616;
+    padding: 14px 10px;
+    font-weight: 400;
 }
