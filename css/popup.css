@@ -17,9 +17,9 @@ button {
     cursor: pointer;
 }
 
-h1, h2, p, body{
-    margin:0;
-    padding:0;
+h1, h2, p, body {
+    margin: 0;
+    padding: 0;
 }
 
 h1 {
@@ -30,7 +30,7 @@ h1 {
     font-size: 16px;
     display: flex;
     align-items: center;
-    gap:12px;
+    gap: 12px;
     margin-bottom: 6px;
 }
 
@@ -44,13 +44,23 @@ h1 {
     padding: 10px;
 }
 
+.tab {
+    display: none;
+}
+
+.tab-header {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
 .option {
     display: flex;
     align-items: center;
-}
-
-.option span {
-    margin-left: 6px;
+    gap: 8px;
 }
 
 .left-options {
@@ -61,24 +71,12 @@ h1 {
     width: 50%;
 }
 
-.slider {
-    cursor: pointer;
-    height: 20px;
-}
-
 .option-container {
     font-size: 12px;
     margin-top: 8px;
     background: var(--container-bg);
     padding: 20px;
     border-radius: 12px;
-}
-
-.top-options-container {
-    display: grid;
-    gap: 10px;
-    grid-template-columns: repeat(4, 1fr);
-    margin-top: 10px;
 }
 
 .options {
@@ -90,6 +88,13 @@ h1 {
     padding: 12px;
 }
 
+.top-options-container {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(4, 1fr);
+    margin-top: 10px;
+}
+
 .big-button {
     border: none;
     border-radius: 6px;
@@ -97,4 +102,62 @@ h1 {
     color: #161616;
     padding: 14px 10px;
     font-weight: 400;
+}
+
+.back-button {
+    padding: 8px 16px;
+}
+
+/* ── Boxy toggle ── */
+.boxy-toggle {
+    position: relative;
+    width: 42px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.boxy-toggle input[type="checkbox"] {
+    display: none;
+}
+
+.boxy-toggle .toggle-ui {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 7px;
+    border: 1.5px solid #c8c8c8;
+    background: #fff;
+    cursor: pointer;
+    overflow: hidden;
+    transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.boxy-toggle .toggle-ui::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+    transition: background 0.14s ease;
+}
+
+.boxy-toggle .toggle-ui::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    background: #161616;
+    transition: left 0.14s ease, background 0.14s ease;
+}
+
+/* ON state */
+.boxy-toggle input[type="checkbox"]:checked + .toggle-ui::before {
+    background: #4caf50;
+}
+
+.boxy-toggle input[type="checkbox"]:checked + .toggle-ui::after {
+    left: 21px;
 }
