@@ -3,111 +3,218 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Inbox Assist</title>
-  <link href="../css/popup.css" rel="stylesheet" />
-  
-  <!-- Swap font out for a better one and readjust weights -->
+  <title>InboxAssist</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" 
-        rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="../css/popup.css" rel="stylesheet" />
 </head>
-
 <body>
 
-  <div id="view-main">
-    <div class="main">
-      <div class="header">
-        <!-- Put icon here -->
-        <h1>InboxAssist</h1>
-      </div>
+  <!-- ── App Shell ── -->
+  <div class="app">
 
-      <div class="top-options-container">
-        <!-- Add SVGs for all buttons -->
-        <button class="big-button" id="open-summarize">
-          <span>Summarize</span>
-        </button>
-        <button class="big-button" id="open-search">
-          <span>Search</span>
-        </button>
-        <button class="big-button" id="open-qa">
-          <span>Q&amp;A</span>
-        </button>
-        <button class="big-button" id="open-compose">
-          <span>Compose</span>
-        </button>
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M2 8l10 7 10-7" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="brand-name">InboxAssist</span>
       </div>
+      <div class="header-meta">
+        <span class="status-dot"></span>
+        <span class="status-label">Connected</span>
+      </div>
+    </header>
 
-      <div class="options">
-        <div class="left-options">
-          <div class="option-container">
-            <div class="option" id="sample_name">
-              <div class="boxy-toggle">
-                <input type="checkbox" id="sample_name-toggle">
-                <label for="sample_name-toggle" class="toggle-ui" aria-label="Toggle Sample option"></label>
+    <!-- ── Views ── -->
+    <main class="app-body">
+
+      <!-- Summarize View -->
+      <div class="view active" id="view-summarize">
+        <div class="view-inner">
+          <div class="view-title-row">
+            <h2 class="view-title">Summarize</h2>
+            <span class="view-subtitle">Current email thread</span>
+          </div>
+
+          <div class="card summary-card">
+            <div class="card-label">Thread</div>
+            <div class="email-meta">
+              <span class="email-from">Sarah Chen</span>
+              <span class="email-count pill">4 messages</span>
+            </div>
+            <p class="email-subject">Re: Q3 Budget Review — Action Items</p>
+          </div>
+
+          <div class="option-row">
+            <label class="toggle-label">
+              <span>Include attachments</span>
+              <div class="toggle">
+                <input type="checkbox" id="toggle-attachments">
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
               </div>
+            </label>
+            <label class="toggle-label">
+              <span>Bullet points</span>
+              <div class="toggle">
+                <input type="checkbox" id="toggle-bullets" checked>
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              </div>
+            </label>
+          </div>
 
-              <span class="option-name">Sample option</span>
+          <div class="output-area" id="summary-output">
+            <div class="output-placeholder">
+              <div class="placeholder-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 12h6M9 16h4M17 2H7a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2V4a2 2 0 00-2-2z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </div>
+              <p>Summary will appear here</p>
             </div>
           </div>
-        </div>
 
-        <div class="right-options">
-          <div class="option-container">
-            <div class="option" id="test_name">
-              <div class="boxy-toggle">
-                <input type="checkbox" id="test_name-toggle">
-                <label for="test_name-toggle" class="toggle-ui"></label>
+          <button class="btn-primary" id="btn-summarize">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Generate Summary
+          </button>
+        </div>
+      </div>
+
+      <!-- Search View -->
+      <div class="view" id="view-search">
+        <div class="view-inner">
+          <div class="view-title-row">
+            <h2 class="view-title">Search</h2>
+            <span class="view-subtitle">Across all email</span>
+          </div>
+
+          <div class="search-bar-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <input type="text" class="search-input" id="search-input" placeholder="Find emails about…" />
+          </div>
+
+          <div class="filter-row">
+            <button class="filter-chip active" data-filter="all">All</button>
+            <button class="filter-chip" data-filter="from">From</button>
+            <button class="filter-chip" data-filter="subject">Subject</button>
+            <button class="filter-chip" data-filter="date">Date</button>
+          </div>
+
+          <div class="results-area" id="search-results">
+            <div class="output-placeholder">
+              <div class="placeholder-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
               </div>
-              <span class="option-name">Right option</span>
+              <p>Type to search your inbox</p>
             </div>
+          </div>
+
+          <button class="btn-primary" id="btn-search">
+            Search Inbox
+          </button>
+        </div>
+      </div>
+
+      <!-- Q&A View -->
+      <div class="view" id="view-qa">
+        <div class="view-inner">
+          <div class="view-title-row">
+            <h2 class="view-title">Q&amp;A</h2>
+            <span class="view-subtitle">Ask about your email</span>
+          </div>
+
+          <div class="chat-window" id="chat-window">
+            <div class="chat-bubble assistant">
+              <div class="bubble-content">Ask me anything about your emails — deadlines, follow-ups, action items.</div>
+            </div>
+          </div>
+
+          <div class="chat-input-row">
+            <input type="text" class="chat-input" id="qa-input" placeholder="Ask a question…" />
+            <button class="btn-send" id="btn-qa-send">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Summarize tab -->
-  <div class="tab" id="view-summarize">
-    <div class="main">
-      <div class="tab-header">
-        <h2>Summarize</h2>
-        <button class="big-button back-button" id="back-from-summarize">Back</button>
-      </div>
-    </div>
-  </div>
+      <!-- Compose View -->
+      <div class="view" id="view-compose">
+        <div class="view-inner">
+          <div class="view-title-row">
+            <h2 class="view-title">Compose</h2>
+            <span class="view-subtitle">AI-assisted drafting</span>
+          </div>
 
-  <!-- Search tab -->
-  <div class="tab" id="view-search">
-    <div class="main">
-      <div class="tab-header">
-        <h2>Search</h2>
-        <button class="big-button back-button" id="back-from-search">Back</button>
-      </div>
-    </div>
-  </div>
+          <div class="compose-field-group">
+            <label class="field-label" for="compose-to">To</label>
+            <input type="text" class="field-input" id="compose-to" placeholder="recipient@example.com" />
+          </div>
 
-  <!-- Q&A tab -->
-  <div class="tab" id="view-qa">
-    <div class="main">
-      <div class="tab-header">
-        <h2>Q&amp;A</h2>
-        <button class="big-button back-button" id="back-from-qa">Back</button>
-      </div>
-    </div>
-  </div>
+          <div class="compose-field-group">
+            <label class="field-label" for="compose-subject">Subject</label>
+            <input type="text" class="field-input" id="compose-subject" placeholder="Email subject" />
+          </div>
 
-  <!-- Compose tab -->
-  <div class="tab" id="view-compose">
-    <div class="main">
-      <div class="tab-header">
-        <h2>Compose</h2>
-        <button class="big-button back-button" id="back-from-compose">Back</button>
+          <div class="compose-field-group grow">
+            <label class="field-label" for="compose-prompt">What should the email say?</label>
+            <textarea class="field-input field-textarea" id="compose-prompt" placeholder="Describe the email you want to write…"></textarea>
+          </div>
+
+          <div class="tone-row">
+            <span class="field-label">Tone</span>
+            <div class="tone-chips">
+              <button class="filter-chip active" data-tone="professional">Professional</button>
+              <button class="filter-chip" data-tone="friendly">Friendly</button>
+              <button class="filter-chip" data-tone="concise">Concise</button>
+              <button class="filter-chip" data-tone="formal">Formal</button>
+            </div>
+          </div>
+
+          <button class="btn-primary" id="btn-compose">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Draft Email
+          </button>
+        </div>
       </div>
-    </div>
+
+    </main>
+
+    <!-- ── Bottom Tab Bar ── -->
+    <nav class="tab-bar">
+      <button class="tab-item active" data-target="view-summarize">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 12h6M9 16h4M17 2H7a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2V4a2 2 0 00-2-2z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        <span>Summarize</span>
+      </button>
+      <button class="tab-item" data-target="view-search">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.7"/>
+          <path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        <span>Search</span>
+      </button>
+      <button class="tab-item" data-target="view-qa">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Q&amp;A</span>
+      </button>
+      <button class="tab-item" data-target="view-compose">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Compose</span>
+      </button>
+    </nav>
+
   </div>
 
   <script src="../js/popup.js"></script>
-
 </body>
 </html>

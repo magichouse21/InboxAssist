@@ -4,6 +4,7 @@ from typing import Dict, List, Any
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from google import genai
 from google.genai import types
 
@@ -11,6 +12,7 @@ from google.genai import types
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")

@@ -3,6 +3,18 @@
     "description": "An Outlook extension to help you go through your emails faster.",
     "version": "0.1",
     "manifest_version": 3,
+    "permissions": [
+        "activeTab",
+        "scripting",
+        "storage"
+    ],
+     "host_permissions": [
+        "http://localhost:5000/*",
+        "https://outlook.cloud.microsoft/mail/*",
+        "https://outlook.live.com/*",
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*"
+    ],
     "icons": {
         "16": "icon/outlook.webp",
         "32": "icon/outlook.webp",
@@ -10,14 +22,22 @@
         "128": "icon/outlook.webp"
     },
     "action": {
-        "default_popup": "html/popup.html"
+        "default_popup": "html/popup.html",
+        "default_title": "InboxAssist"
+    },
+    "background": {
+        "service_worker": "js/background.js"
     },
     "content_scripts": [
         {
             "js": ["js/content.js"],
             "css": ["css/content.css"],
+            "run_at": "document_idle",
             "matches": [
-                "https://outlook.cloud.microsoft/mail/*"
+                "https://outlook.cloud.microsoft/mail/*",
+                "https://outlook.live.com/*",
+                "https://outlook.office.com/*",
+                "https://outlook.office365.com/*"
             ]
         }
     ]
