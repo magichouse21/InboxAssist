@@ -61,26 +61,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!query) return;
     setLoading(results);
 
-    // TODO: call background.js -> query Outlook Graph API / Claude
-    setTimeout(() => {
-      results.innerHTML = `
+    chrome.runtime.sendMessage({ type: 'SEARCH', query }, ({ ok, results: emails, error }) => {
+      if (!ok) {
+        results.innerHTML = `<p class="summary-text" style="color:red">${error}</p>`;
+        return;
+      }
+      if (!emails || emails.length === 0) {
+        results.innerHTML = `<div class="output-placeholder"><p>No results found.</p></div>`;
+        return;
+      }
+      results.innerHTML = emails.map(m => `
         <div class="result-item">
           <div class="result-meta">
-            <span class="result-from">Sarah Chen</span>
-            <span class="result-date">Apr 28</span>
+            <span class="result-from">${escapeHtml(m.from_name || m.from || 'Unknown')}</span>
+            <span class="result-date">${m.received ? formatDate(m.received) : ''}</span>
           </div>
-          <div class="result-subject">Re: Q3 Budget Review — Action Items</div>
-          <div class="result-snippet">…the breakdown you requested is attached…</div>
-        </div>
-        <div class="result-item">
-          <div class="result-meta">
-            <span class="result-from">Marcus Webb</span>
-            <span class="result-date">Apr 26</span>
-          </div>
-          <div class="result-subject">Design assets ready for review</div>
-          <div class="result-snippet">…assets uploaded to the shared drive…</div>
-        </div>`;
-    }, 1000);
+          <div class="result-subject">${escapeHtml(m.subject)}</div>
+          <div class="result-snippet">${escapeHtml(m.body_preview || '')}</div>
+        </div>`
+      ).join('');
+    });
   });
 
   // ── Q&A chat ────────────────────────────────────────────────────
@@ -111,26 +111,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const thinking = appendBubble('assistant', '…');
 
-    chrome.runtime.sendMessage(
-      {
-        type:         'QA',
-        question:     text,
-        sessionId:    qaSessionId,
-        isNewSession: qaIsNewSession,
-      },
-      ({ ok, answer, error }) => {
-        thinking.querySelector('.bubble-content').textContent = ok ? answer : `Error: ${error}`;
-        chatWin.scrollTop = chatWin.scrollHeight;
+    if (qaIsNewSession) {
+      chrome.runtime.sendMessage({ type: 'GET_EMAIL_CONTENT' }, (contentResponse) => {
+        const emailContent = contentResponse?.content || '';
+        dispatchQA(text, thinking, emailContent);
+      });
+    } else {
+      dispatchQA(text, thinking, null);
+    }
+  }
 
-        if (ok) {
-          qaIsNewSession = false; // subsequent turns reuse the same session
-        }
+  function dispatchQA(question, thinkingBubble, emailContent) {
+    const payload = {
+      type:         'QA',
+      question,
+      sessionId:    qaSessionId,
+      isNewSession: qaIsNewSession,
+    };
+    if (qaIsNewSession && emailContent) payload.emailContent = emailContent;
 
-        qaInput.disabled = false;
-        qaBtn.disabled   = false;
-        qaInput.focus();
-      }
-    );
+    chrome.runtime.sendMessage(payload, ({ ok, answer, error }) => {
+      thinkingBubble.querySelector('.bubble-content').textContent = ok ? answer : `Error: ${error}`;
+      chatWin.scrollTop = chatWin.scrollHeight;
+
+      if (ok) qaIsNewSession = false;
+
+      qaInput.disabled = false;
+      qaBtn.disabled   = false;
+      qaInput.focus();
+    });
   }
 
   function appendBubble(role, text) {
@@ -147,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const prompt      = document.getElementById('compose-prompt')?.value.trim();
     const tone        = document.querySelector('.tone-chips .filter-chip.active')?.dataset.tone || 'professional';
     const to          = document.getElementById('compose-to')?.value.trim();
-    const sender_name = ''; // optionally add a field for this
+    const sender_name = '';
 
     if (!prompt) return;
 
@@ -163,8 +172,43 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ok) {
           document.getElementById('compose-subject').value = draft.subject;
           document.getElementById('compose-prompt').value  = draft.body;
+          // Show the send button now that we have a draft
+          document.getElementById('btn-send-email').hidden = false;
         } else {
           alert(`Compose failed: ${error}`);
+        }
+      }
+    );
+  });
+
+  document.getElementById('btn-send-email')?.addEventListener('click', () => {
+    const subject   = document.getElementById('compose-subject')?.value.trim();
+    const body      = document.getElementById('compose-prompt')?.value.trim();
+    const recipient = document.getElementById('compose-to')?.value.trim();
+
+    if (!subject || !body || !recipient) {
+      alert('Please fill in To, Subject, and body before sending.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-send-email');
+    btn.textContent = 'Sending…';
+    btn.disabled = true;
+
+    chrome.runtime.sendMessage(
+      { type: 'SEND', subject, body, recipient },
+      ({ ok, error }) => {
+        btn.textContent = 'Send Email';
+        btn.disabled = false;
+        if (ok) {
+          // Clear the form on success
+          document.getElementById('compose-to').value      = '';
+          document.getElementById('compose-subject').value = '';
+          document.getElementById('compose-prompt').value  = '';
+          btn.hidden = true;
+          alert('Email sent successfully!');
+        } else {
+          alert(`Send failed: ${error}`);
         }
       }
     );
@@ -175,6 +219,19 @@ document.addEventListener('DOMContentLoaded', () => {
     el.innerHTML = `<div class="output-placeholder">
       <div class="loading-dots"><span></span><span></span><span></span></div>
     </div>`;
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatDate(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
 });

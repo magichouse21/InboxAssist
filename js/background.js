@@ -2,13 +2,15 @@
 
 /**
  * Central message hub between popup.js and content.js.
- * 
+ *
  * Message types (popup → background → content):
- *   { type: "SUMMARIZE",  options: { bullets: bool } }
- *   { type: "SEARCH",     query: string, filter: string }
- *   { type: "QA",         question: string }
- *   { type: "COMPOSE",    prompt: string, tone: string, to: string, subject: string }
- * 
+ *   { type: "SUMMARIZE",  options: {} }
+ *   { type: "SEARCH",     query: string }
+ *   { type: "QA",         question: string, sessionId: string, isNewSession: bool, emailContent?: string }
+ *   { type: "COMPOSE",    prompt: string, tone: string, to: string, sender_name: string }
+ *   { type: "SEND",       subject: string, body: string, recipient: string }
+ *   { type: "GET_EMAIL_CONTENT" }  ← forwarded to content.js
+ *
  * Responses are forwarded back to the popup via sendResponse().
  */
 
@@ -30,6 +32,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "COMPOSE":
       handleCompose(message, sendResponse);
       break;
+    case "SEND":
+      handleSend(message, sendResponse);
+      break;
+    case "GET_EMAIL_CONTENT":
+      // Popup is requesting email text directly (used by Q&A on first message)
+      getEmailContentFromTab()
+        .then(content => sendResponse({ content }))
+        .catch(err   => sendResponse({ content: '', error: err.message }));
+      break;
     default:
       sendResponse({ error: `Unknown message type: ${type}` });
   }
@@ -43,7 +54,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleSummarize({ options }, sendResponse) {
   try {
     const emailContent = await getEmailContentFromTab();
-    const style = options?.bullets ? 'bullet points' : 'brief and professional';
+    const style = 'brief and professional';
 
     const res = await fetch(`${API_BASE}/summarize`, {
       method: 'POST',
@@ -60,11 +71,22 @@ async function handleSummarize({ options }, sendResponse) {
   }
 }
 
-async function handleSearch({ query, filter }, sendResponse) {
+async function handleSearch({ query }, sendResponse) {
   try {
-    // TODO: Query Outlook Graph API or use Claude on cached emails
-    // const results = await queryOutlookGraph(query, filter);
-    sendResponse({ ok: true, results: [] });
+    if (!query || !query.trim()) {
+      return sendResponse({ ok: false, error: "Query cannot be empty." });
+    }
+
+    const res = await fetch(`${API_BASE}/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) return sendResponse({ ok: false, error: data.error });
+    sendResponse({ ok: true, results: data.results });
+
   } catch (err) {
     sendResponse({ ok: false, error: err.message });
   }
@@ -77,7 +99,10 @@ async function handleQA({ question, sessionId, isNewSession, emailContent }, sen
       session_id: sessionId,
       new_session: isNewSession,
     };
-    if (isNewSession) body.content = emailContent;
+    if (isNewSession) {
+      // Use content sent by popup; fall back to scraping the tab if missing
+      body.content = emailContent || await getEmailContentFromTab();
+    }
 
     const res = await fetch(`${API_BASE}/qna`, {
       method: 'POST',
@@ -110,6 +135,23 @@ async function handleCompose({ prompt, tone, to, sender_name }, sendResponse) {
     const data = await res.json();
     if (!res.ok) return sendResponse({ ok: false, error: data.error });
     sendResponse({ ok: true, draft: data }); // { subject, body }
+
+  } catch (err) {
+    sendResponse({ ok: false, error: err.message });
+  }
+}
+
+async function handleSend({ subject, body, recipient }, sendResponse) {
+  try {
+    const res = await fetch(`${API_BASE}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject, body, recipient }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) return sendResponse({ ok: false, error: data.error });
+    sendResponse({ ok: true, message: data.message });
 
   } catch (err) {
     sendResponse({ ok: false, error: err.message });

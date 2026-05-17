@@ -704,3 +704,10 @@ body {
   0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
   40%            { transform: scale(1);   opacity: 1; }
 }
+/* Send button — success green */
+.btn-send-email {
+  background: #059669;
+}
+.btn-send-email:hover {
+  background: #047857;
+}
