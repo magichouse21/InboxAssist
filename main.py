@@ -1,4 +1,3 @@
-import asyncio
 import configparser
 import json
 import os
@@ -26,9 +25,6 @@ if not GEMINI_API_KEY:
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ── Microsoft Graph ───────────────────────────────────────────────────────────
-# Loaded once at startup. The device code prompt appears in the terminal the
-# first time a Graph-backed endpoint is hit and the credential has no cached
-# token. Subsequent calls reuse the cached token automatically.
 
 _config = configparser.ConfigParser()
 _config.read([
@@ -48,9 +44,6 @@ def json_error(message: str, status_code: int):
     response.status_code = status_code
     return response
 
-def run_async(coro):
-    """Run an async coroutine from a synchronous Flask route."""
-    return asyncio.run(coro)
 
 def serialize_message(msg) -> Dict[str, Any]:
     """Convert a Graph Message object to a JSON-safe dict."""
@@ -320,13 +313,13 @@ def write_email():
 # ── Graph endpoints ───────────────────────────────────────────────────────────
 
 @app.get("/inbox")
-def inbox():
+async def inbox():
     """
     Returns the latest 25 inbox messages via Microsoft Graph.
     Triggers device code auth in the terminal on first call if no token is cached.
     """
     try:
-        messages = run_async(graph.get_inbox())
+        messages = await graph.get_inbox()
         if not messages or not messages.value:
             return jsonify({"emails": []})
         return jsonify({"emails": [serialize_message(m) for m in messages.value]})
@@ -335,7 +328,7 @@ def inbox():
 
 
 @app.post("/search")
-def search():
+async def search():
     """
     Searches the mailbox via Microsoft Graph using a keyword.
     Body: { "query": "keyword" }
@@ -349,7 +342,7 @@ def search():
         return json_error("'query' is required and must be a non-empty string.", 400)
 
     try:
-        messages = run_async(graph.search_messages(query.strip()))
+        messages = await graph.search_messages(query.strip())
         if not messages or not messages.value:
             return jsonify({"results": []})
         return jsonify({"results": [serialize_message(m) for m in messages.value]})
@@ -358,7 +351,7 @@ def search():
 
 
 @app.post("/send")
-def send():
+async def send():
     """
     Sends an email via Microsoft Graph.
     Body: { "subject": "...", "body": "...", "recipient": "..." }
@@ -379,7 +372,7 @@ def send():
         return json_error("'recipient' is required and must be a non-empty string.", 400)
 
     try:
-        run_async(graph.send_mail(subject.strip(), body.strip(), recipient.strip()))
+        await graph.send_mail(subject.strip(), body.strip(), recipient.strip())
         return jsonify({"ok": True, "message": "Email sent successfully."})
     except Exception as exc:
         return json_error(f"Graph send failed: {str(exc)}", 500)
