@@ -15,6 +15,8 @@ How to run InboxAssist:
 
 - switch back to Flask terminal and open https://login.microsoft.com/device to authenticate with given code
 
+- at the moment, only @outlook.com email addresses are able to be used
+
 - load the chrome extension:
     go to chrome://extensions
     enable 'Developer mode'
