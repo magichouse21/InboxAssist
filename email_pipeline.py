@@ -1,6 +1,4 @@
 """
-pipeline.py — Email RAG pipeline
-=================================
 Handles:
   1. Fetching emails from Microsoft Graph
   2. Cleaning and chunking email text
@@ -8,17 +6,6 @@ Handles:
   4. Storing vectors in an in-memory FAISS index
   5. Retrieving the top-k most relevant chunks for a query
 
-Data structures
----------------
-EmailChunk (dataclass)
-    email_id    : str        — Graph message ID
-    chunk_index : int        — position within the email (0-based)
-    text        : str        — raw chunk text
-    metadata    : dict       — subject, from, received, is_read
-
-VectorStore
-    index       : faiss.IndexFlatIP   — inner-product index over L2-normalised vectors
-    chunks      : List[EmailChunk]    — parallel array; index i ↔ chunks[i]
 """
 
 from __future__ import annotations
@@ -34,7 +21,7 @@ import asyncio
 import concurrent.futures
 
 try:
-    import faiss  # pip install faiss-cpu
+    import faiss  
     FAISS_AVAILABLE = True
 except ImportError:
     FAISS_AVAILABLE = False
@@ -58,14 +45,13 @@ class EmailChunk:
     chunk_index: int
     text:        str
     metadata:    dict = field(default_factory=dict)
-    # populated after embedding
     embedding:   Optional[np.ndarray] = field(default=None, repr=False)
 
 
 @dataclass
 class RetrievalResult:
     chunk:  EmailChunk
-    score:  float          # cosine similarity (0–1)
+    score:  float        
 
 
 # ── Text cleaning ─────────────────────────────────────────────────────────────
@@ -90,11 +76,8 @@ def clean_email_text(raw: str) -> str:
 # ── Chunking ──────────────────────────────────────────────────────────────────
 
 def chunk_text(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
-    """
-    Sliding-window character chunker.
-    Tries to break at sentence/paragraph boundaries within ±50 chars of
-    the target size to avoid cutting mid-sentence.
-    """
+    #Tries to break at sentence/paragraph boundaries within ±50 chars of the target size to avoid cutting mid-sentence
+    
     if len(text) <= size:
         return [text]
 
@@ -126,8 +109,8 @@ def chunk_text(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) 
 
 def email_to_chunks(email: dict) -> List[EmailChunk]:
     """
-    Convert a serialized Graph email dict into a list of EmailChunk objects.
-    Uses both subject and body for richer context.
+    Convert a serialized Graph email dict into a list of EmailChunk objects
+    Uses both subject and body
     """
     subject = email.get('subject', '') or ''
     body    = email.get('body', '') or email.get('body_preview', '') or ''
@@ -156,7 +139,7 @@ def email_to_chunks(email: dict) -> List[EmailChunk]:
 # ── Embedding ─────────────────────────────────────────────────────────────────
 
 class EmbeddingService:
-    """Thin wrapper around Gemini text-embedding-004."""
+    #text embedding via Gemini API
 
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
@@ -260,17 +243,9 @@ class VectorStore:
         return len(self.chunks)
 
 
-# ── High-level pipeline ───────────────────────────────────────────────────────
 
 class EmailPipeline:
-    """
-    Orchestrates the full fetch → chunk → embed → index → retrieve flow.
-
-    Usage (in main.py):
-        pipeline = EmailPipeline()
-        pipeline.ingest(emails)          # list of serialized email dicts
-        results  = pipeline.query("who sent the budget report?")
-    """
+    #the full fetch → chunk → embed → index → retrieve flow
 
     def __init__(self):
         self.embedder = EmbeddingService()
