@@ -158,12 +158,41 @@ async function handleSend({ subject, body, recipient }, sendResponse) {
   }
 }
 
+
+// ── Content Script Injection ─────────────────────────────────────
+async function ensureContentScript(tabId) {
+  return new Promise((resolve) => {
+    // Ping the tab — if content.js is alive it responds immediately
+    chrome.tabs.sendMessage(tabId, { type: 'PING' }, (response) => {
+      if (chrome.runtime.lastError || !response?.pong) {
+        // Not injected yet — inject now
+        chrome.scripting.executeScript(
+          { target: { tabId }, files: ['js/content.js'] },
+          () => {
+            // Small delay so the listener registers before we use it
+            setTimeout(resolve, 100);
+          }
+        );
+      } else {
+        resolve(); // already injected
+      }
+    });
+  });
+}
+
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 function getEmailContentFromTab() {
   return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
       if (!tab) return reject(new Error("No active tab found"));
+
+      try {
+        await ensureContentScript(tab.id);
+      } catch (e) {
+        return reject(new Error("Failed to inject content script: " + e.message));
+      }
 
       chrome.tabs.sendMessage(tab.id, { type: "GET_EMAIL_CONTENT" }, (response) => {
         if (chrome.runtime.lastError) {

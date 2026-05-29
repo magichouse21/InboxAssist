@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       results.innerHTML = emails.map(m => `
-        <div class="result-item">
+        <div class="result-item" ${m.web_link ? `data-url="${escapeHtml(m.web_link)}"` : ''} style="${m.web_link ? 'cursor:pointer' : ''}">
           <div class="result-meta">
             <span class="result-from">${escapeHtml(m.from_name || m.from || 'Unknown')}</span>
             <span class="result-date">${m.received ? formatDate(m.received) : ''}</span>
@@ -80,6 +80,16 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="result-snippet">${escapeHtml(m.body_preview || '')}</div>
         </div>`
       ).join('');
+
+    // make results clickable
+    results.querySelectorAll('.result-item[data-url]').forEach(item => {
+      item.addEventListener('click', () => {
+        chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+          chrome.tabs.update(tab.id, { url: item.dataset.url });
+        });
+        
+      });
+    });
     });
   });
 

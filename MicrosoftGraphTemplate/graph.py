@@ -47,7 +47,7 @@ class Graph:
     async def get_inbox(self):
         query_params = MessagesRequestBuilder.MessagesRequestBuilderGetQueryParameters(
             # Only request specific properties
-            select=['from', 'subject', 'toRecipients', 'receivedDateTime', 'importance', 'body'],
+            select=['from', 'subject', 'toRecipients', 'receivedDateTime', 'importance', 'body', 'webLink'],
             # Get at most 25 results
             top=25,
             # Sort by received time, newest first
@@ -83,7 +83,7 @@ class Graph:
     async def search_messages(self, keyword: str):
         query_params = MessagesRequestBuilder.MessagesRequestBuilderGetQueryParameters(
             search=f'"{keyword}"',
-            select=['from', 'subject', 'toRecipients', 'receivedDateTime', 'importance', 'body'],
+            select=['from', 'subject', 'toRecipients', 'receivedDateTime', 'importance', 'body', 'webLink'],
             top=25
         )
 

@@ -9,6 +9,9 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from google import genai
 from google.genai import types
+from email_pipeline import EmailPipeline
+print("Pipeline loaded:", EmailPipeline) 
+pipeline = EmailPipeline()
 
 from MicrosoftGraphTemplate.graph import Graph
 
@@ -49,8 +52,16 @@ def json_error(message: str, status_code: int):
     return response
 
 def run_async(coro):
-    """Run an async coroutine from a synchronous Flask route."""
-    return asyncio.run(coro)
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
 
 def serialize_message(msg) -> Dict[str, Any]:
     """Convert a Graph Message object to a JSON-safe dict."""
@@ -76,6 +87,7 @@ def serialize_message(msg) -> Dict[str, Any]:
             msg.body.content
             if getattr(msg, "body", None) and msg.body.content else None
         ),
+        "web_link":     getattr(msg, "web_link", None),
     }
 
 # ── Prompt builders ───────────────────────────────────────────────────────────
@@ -115,6 +127,28 @@ Email:
 
 Current question:
 {question}
+""".strip()
+
+def build_rag_qa_prompt(context: str, question: str, history: List[Dict[str, str]]) -> str:
+    recent_history = history[-4:] if history else []
+    history_block = ""
+    if recent_history:
+        formatted_turns = [
+            f"Q: {item['question']}\nA: {item['answer']}"
+            for item in recent_history
+        ]
+        history_block = "\n\nPrevious conversation:\n" + "\n\n".join(formatted_turns)
+ 
+    return f"""
+You are an email assistant. Answer the question using ONLY the email excerpts below.
+If the answer is not in the excerpts, say so clearly.
+Cite which email (From / Subject) your answer came from.
+ 
+Relevant email excerpts:
+{context}
+{history_block}
+ 
+Question: {question}
 """.strip()
 
 def build_write_email_prompt(description: str, tone: str, recipient: str, sender_name: str) -> str:
@@ -169,8 +203,10 @@ def home():
         "endpoints": {
             "summarize":   "POST /summarize",
             "qna":         "POST /qna",
+            "rag_qna":      "POST /rag-qna",
             "write_email": "POST /write-email",
             "inbox":       "GET  /inbox",
+            "index_inbox":  "POST /index-inbox",
             "search":      "POST /search",
             "send":        "POST /send",
         }
@@ -270,7 +306,56 @@ def qna():
     except Exception as exc:
         return json_error(f"Gemini request failed: {str(exc)}", 500)
 
-
+@app.post("/rag-qna")
+def rag_qna():
+    """
+    RAG Q&A — retrieves relevant chunks from the indexed mailbox,
+    then answers using only those chunks.
+    Requires /index-inbox to have been called first.
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return json_error("Request body must be valid JSON.", 400)
+ 
+    question   = data.get("question")
+    session_id = data.get("session_id", "rag_default")
+ 
+    if not isinstance(question, str) or not question.strip():
+        return json_error("'question' is required.", 400)
+ 
+    if pipeline.chunk_count == 0:
+        return json_error("Inbox not indexed yet. Call POST /index-inbox first.", 400)
+ 
+    try:
+        context = pipeline.query_as_context(question.strip())
+ 
+        if session_id not in sessions:
+            sessions[session_id] = {"email_text": "", "history": []}
+ 
+        history = sessions[session_id]["history"]
+        prompt  = build_rag_qa_prompt(context, question.strip(), history)
+ 
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(temperature=0.3),
+        )
+        answer = (response.text or "").strip()
+        if not answer:
+            return json_error("Model returned an empty response.", 502)
+ 
+        sessions[session_id]["history"].append({"question": question.strip(), "answer": answer})
+ 
+        return jsonify({
+            "session_id":    session_id,
+            "message":       answer,
+            "history_count": len(sessions[session_id]["history"]),
+            "chunks_used":   context.count("---") + 1,
+        })
+    except Exception as exc:
+        return json_error(f"RAG Q&A failed: {str(exc)}", 500)
+ 
+ 
 @app.post("/write-email")
 def write_email():
     data = request.get_json(silent=True)
@@ -332,6 +417,31 @@ def inbox():
         return jsonify({"emails": [serialize_message(m) for m in messages.value]})
     except Exception as exc:
         return json_error(f"Graph request failed: {str(exc)}", 500)
+    
+@app.post("/index-inbox")
+def index_inbox():
+    """
+    Fetch the latest inbox emails, chunk + embed them, and store in the
+    in-memory vector index. Call this once when the extension loads,
+    or whenever you want to refresh the index.
+    """
+    try:
+        messages = run_async(graph.get_inbox())
+        if not messages or not messages.value:
+            return jsonify({"ok": True, "chunks_indexed": 0, "emails_processed": 0})
+ 
+        emails = [serialize_message(m) for m in messages.value]
+ 
+        pipeline.clear()                        # re-index from scratch
+        chunks_indexed = pipeline.ingest(emails)
+ 
+        return jsonify({
+            "ok":             True,
+            "emails_processed": len(emails),
+            "chunks_indexed": chunks_indexed,
+        })
+    except Exception as exc:
+        return json_error(f"Indexing failed: {str(exc)}", 500)
 
 
 @app.post("/search")
