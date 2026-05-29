@@ -432,7 +432,17 @@ def index_inbox():
  
         emails = [serialize_message(m) for m in messages.value]
  
-        pipeline.clear()                        # re-index from scratch
+        # only index emails not already in the store
+        existing_ids = {c.email_id for c in pipeline.store.chunks}
+        new_emails   = [e for e in emails if e.get('id') not in existing_ids]
+
+        if not new_emails:
+            return jsonify({
+                "ok": True,
+                "emails_processed": 0,
+                "chunks_indexed": 0,
+                "message": "All emails already indexed."
+            })
         chunks_indexed = pipeline.ingest(emails)
  
         return jsonify({
@@ -496,4 +506,14 @@ def send():
 
 
 if __name__ == "__main__":
+    try:
+        with app.app_context():
+            messages = run_async(graph.get_inbox())
+            if messages and messages.value:
+                emails = [serialize_message(m) for m in messages.value]
+                n = pipeline.ingest(emails)
+                print(f"Indexed {n} chunks from {len(emails)} emails.")
+    except Exception as e:
+        print(f"Auto-index skipped: {e}")
+
     app.run(host="0.0.0.0", port=5000, debug=False)

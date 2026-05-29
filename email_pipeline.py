@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 import numpy as np
+import asyncio
+import concurrent.futures
 
 try:
     import faiss  # pip install faiss-cpu
@@ -43,10 +45,10 @@ from google.genai import types as gentypes
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-EMBEDDING_MODEL   = "gemini-embedding-001"   # Gemini embedding model
-CHUNK_SIZE        = 400    # characters per chunk (≈ 80-100 tokens)
-CHUNK_OVERLAP     = 80     # overlap to preserve context across boundaries
-TOP_K             = 5      # chunks returned per query
+EMBEDDING_MODEL   = "gemini-embedding-001"  
+CHUNK_SIZE        = 800    
+CHUNK_OVERLAP     = 100     
+TOP_K             = 3     
 
 # ── Data structures ───────────────────────────────────────────────────────────
 
@@ -163,27 +165,20 @@ class EmbeddingService:
         self._client = genai.Client(api_key=api_key)
 
     def embed_texts(self, texts: List[str], task: str = "RETRIEVAL_DOCUMENT") -> np.ndarray:
-        """
-        Embed a batch of texts.
-        Returns float32 array of shape (len(texts), dim).
-
-        task options:
-            RETRIEVAL_DOCUMENT  — for indexing chunks
-            RETRIEVAL_QUERY     — for embedding the user query
-            SEMANTIC_SIMILARITY — for similarity comparisons
-        """
-        results = []
-        # Gemini embedding API processes one at a time in the SDK
-        for text in texts:
+  
+        def embed_one(text):
             response = self._client.models.embed_content(
                 model=EMBEDDING_MODEL,
                 contents=text,
                 config=gentypes.EmbedContentConfig(task_type=task),
             )
-            results.append(response.embeddings[0].values)
+            return response.embeddings[0].values
 
-        arr = np.array(results, dtype=np.float32)
-        return arr
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            results = list(executor.map(embed_one, texts))
+
+        return np.array(results, dtype=np.float32)
+
 
     def embed_query(self, query: str) -> np.ndarray:
         return self.embed_texts([query], task="RETRIEVAL_QUERY")[0]
