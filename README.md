@@ -13,7 +13,7 @@ How to run InboxAssist:
 - run on another terminal:
     Invoke-WebRequest -Uri http://localhost:5000/index-inbox -Method POST -UseBasicParsing
 
-    Invoke-WebRequest -Uri http://localhost:5000/index-inbox -Method POST
+- switch back to Flask terminal and open https://login.microsoft.com/device to authenticate with given code
 
 - load the chrome extension:
     go to chrome://extensions
