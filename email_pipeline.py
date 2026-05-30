@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 import numpy as np
+from dotenv import load_dotenv
 import asyncio
 import concurrent.futures
 
@@ -142,6 +143,7 @@ class EmbeddingService:
     #text embedding via Gemini API
 
     def __init__(self):
+        load_dotenv()
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY not set")

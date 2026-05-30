@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from anthropic import Anthropic
+from openai import OpenAI
 from email_pipeline import EmailPipeline
 print("Pipeline loaded:", EmailPipeline) 
 pipeline = EmailPipeline()
@@ -19,17 +20,35 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+# ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+# MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
+# DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 
-if not ANTHROPIC_API_KEY:
-    raise RuntimeError("ANTHROPIC_API_KEY is missing. Add it to your .env file.")
+# if not ANTHROPIC_API_KEY:
+#     raise RuntimeError("ANTHROPIC_API_KEY is missing. Add it to your .env file.")
+# if not OPENAI_API_KEY:
+#     raise RuntimeError("OPENAI_API_KEY is missing. Add it to your .env file.")
+if not CEREBRAS_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY is missing. Add it to your .env file.")
+# if not DEEPSEEK_API_KEY:
+#     raise RuntimeError("DEEPSEEK_API_KEY is missing. Add it to your .env file.")
 
-client = Anthropic(api_key=ANTHROPIC_API_KEY)
+# client = Anthropic(api_key=ANTHROPIC_API_KEY)
+# client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=CEREBRAS_API_KEY, base_url="https://api.cerebras.ai/v1")
+# client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+
+def ask_model(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
+    # return ask_anthropic(prompt, temperature, max_tokens)
+    # return ask_chat(prompt, max_tokens)
+    return ask_cerebras(prompt, temperature, max_tokens)
+    # return ask_deep(prompt, max_tokens)
 
 def ask_anthropic(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
     response = client.messages.create(
-        model=MODEL,
+        model="claude-sonnet-4-20250514",
         max_tokens=max_tokens,
         temperature=temperature,
         messages=[
@@ -37,10 +56,42 @@ def ask_anthropic(prompt: str, temperature: float = 0.4, max_tokens: int = 1000)
         ],
     )
 
-    if not response.content:
-        return ""
+    return response.content[0].text.strip() if response.content else ""
 
-    return response.content[0].text.strip()
+def ask_chat(prompt: str, max_tokens: int = 1000) -> str:
+    response = client.responses.create(
+        model="gpt-5.5",
+        max_output_tokens=max_tokens,
+        input=[
+            {"role": "user", "content": prompt}
+        ],
+    )
+
+    return response.output_text.strip() if response.output_text else ""
+
+def ask_cerebras(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
+    response = client.chat.completions.create(
+        model="gpt-oss-120b",
+        temperature=temperature,
+        max_tokens=max_tokens,
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+    )
+
+    content = response.choices[0].message.content
+    return content.strip() if content else ""
+
+def ask_deep(prompt: str, max_tokens: int = 1000) -> str:
+    response = client.chat.completions.create(
+        model="deepseek-v4-flash",
+        max_tokens=max_tokens,
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+    )
+
+    return response.choices[0].message.content.strip()
 
 # ── Microsoft Graph ───────────────────────────────────────────────────────────
 # Loaded once at startup. The device code prompt appears in the terminal the
@@ -243,9 +294,8 @@ def summarize():
         return json_error("'style' must be a string.", 400)
 
     try:
-        message = ask_anthropic(
+        message = ask_model(
             build_summary_prompt(email_text.strip(), style.strip() or "brief and professional"),
-            temperature=0.4,
         )
 
         if not message:
@@ -253,7 +303,7 @@ def summarize():
 
         return jsonify({"message": message})
     except Exception as exc:
-        return json_error(f"Anthropic request failed: {str(exc)}", 500)
+        return json_error(f"Model request failed: {str(exc)}", 500)
 
 
 @app.post("/qna")
@@ -301,7 +351,7 @@ def qna():
             history=session["history"],
         )
 
-        answer = ask_anthropic(prompt, temperature=0.3)
+        answer = ask_deep(prompt)
 
         if not answer:
             return json_error("Model returned an empty response.", 502)
@@ -345,7 +395,7 @@ def rag_qna():
         history = sessions[session_id]["history"]
         prompt  = build_rag_qa_prompt(context, question.strip(), history)
  
-        answer = ask_anthropic(prompt, temperature=0.3)
+        answer = ask_deep(prompt)
 
         if not answer:
             return json_error("Model returned an empty response.", 502)
@@ -383,14 +433,13 @@ def write_email():
         return json_error("'sender_name' must be a string.", 400)
 
     try:
-        raw_text = ask_anthropic(
+        raw_text = ask_deep(
             build_write_email_prompt(
                 description.strip(),
                 tone.strip() or "professional",
                 recipient.strip(),
                 sender_name.strip(),
             ),
-            temperature=0.7,
         )
 
         if not raw_text:
@@ -402,7 +451,7 @@ def write_email():
 
         return jsonify(parsed)
     except Exception as exc:
-        return json_error(f"Gemini request failed: {str(exc)}", 500)
+        return json_error(f"Model request failed: {str(exc)}", 500)
 
 # ── Graph endpoints ───────────────────────────────────────────────────────────
 
