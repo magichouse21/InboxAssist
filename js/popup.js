@@ -54,22 +54,34 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   });
 
-  // ── Search ──────────────────────────────────────────────────────
-  document.getElementById('btn-search')?.addEventListener('click', () => {
-    const query   = document.getElementById('search-input')?.value.trim();
-    const results = document.getElementById('search-results');
-    if (!query) return;
-    setLoading(results);
+// ── Search ──────────────────────────────────────────────────────
+document.getElementById('btn-search')?.addEventListener('click', () => {
+  const query   = document.getElementById('search-input')?.value.trim();
+  const results = document.getElementById('search-results');
 
-    chrome.runtime.sendMessage({ type: 'SEARCH', query }, ({ ok, results: emails, error }) => {
+  const activeChip = document.querySelector('#view-search .filter-chip.active');
+  const filter = activeChip?.dataset.filter || 'all';
+
+  if (!query) return;
+  setLoading(results);
+
+  chrome.runtime.sendMessage(
+    {
+      type: 'SEARCH',
+      query,
+      filter
+    },
+    ({ ok, results: emails, error }) => {
       if (!ok) {
         results.innerHTML = `<p class="summary-text" style="color:red">${error}</p>`;
         return;
       }
+
       if (!emails || emails.length === 0) {
         results.innerHTML = `<div class="output-placeholder"><p>No results found.</p></div>`;
         return;
       }
+
       results.innerHTML = emails.map(m => `
         <div class="result-item" ${m.web_link ? `data-url="${escapeHtml(m.web_link)}"` : ''} style="${m.web_link ? 'cursor:pointer' : ''}">
           <div class="result-meta">
@@ -81,17 +93,16 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>`
       ).join('');
 
-    // make results clickable
-    results.querySelectorAll('.result-item[data-url]').forEach(item => {
-      item.addEventListener('click', () => {
-        chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-          chrome.tabs.update(tab.id, { url: item.dataset.url });
+      results.querySelectorAll('.result-item[data-url]').forEach(item => {
+        item.addEventListener('click', () => {
+          chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+            chrome.tabs.update(tab.id, { url: item.dataset.url });
+          });
         });
-        
       });
-    });
-    });
-  });
+    }
+  );
+});
 
   // ── Q&A chat ────────────────────────────────────────────────────
   let qaSessionId = crypto.randomUUID();

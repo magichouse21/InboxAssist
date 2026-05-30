@@ -71,21 +71,40 @@ async function handleSummarize({ options }, sendResponse) {
   }
 }
 
-async function handleSearch({ query }, sendResponse) {
+async function handleSearch({ query, filter }, sendResponse) {
   try {
     if (!query || !query.trim()) {
       return sendResponse({ ok: false, error: "Query cannot be empty." });
     }
 
+    const selectedFilter = filter || "all";
+
+    console.log("BACKGROUND SEARCH:", {
+      query: query.trim(),
+      filter: selectedFilter,
+    });
+
     const res = await fetch(`${API_BASE}/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({
+        query: query.trim(),
+        filter: selectedFilter,
+      }),
     });
 
     const data = await res.json();
-    if (!res.ok) return sendResponse({ ok: false, error: data.error });
-    sendResponse({ ok: true, results: data.results });
+
+    if (!res.ok) {
+      return sendResponse({ ok: false, error: data.error });
+    }
+
+    sendResponse({
+      ok: true,
+      results: data.results,
+      filter: data.filter,
+      count: data.count,
+    });
 
   } catch (err) {
     sendResponse({ ok: false, error: err.message });

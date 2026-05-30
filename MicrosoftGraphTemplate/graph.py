@@ -11,6 +11,9 @@ from msgraph.generated.models.item_body import ItemBody
 from msgraph.generated.models.body_type import BodyType
 from msgraph.generated.models.recipient import Recipient
 from msgraph.generated.models.email_address import EmailAddress
+from datetime import timedelta
+from dateutil import parser
+
 
 class Graph:
     settings: SectionProxy
@@ -96,6 +99,115 @@ class Graph:
         return await self.user_client.me.messages.get(
             request_configuration=request_config
         )
+    
+    def _message_request_config(self, query_params):
+        request_config = MessagesRequestBuilder.MessagesRequestBuilderGetRequestConfiguration(
+            query_parameters=query_params
+        )
+        request_config.headers.add("Prefer", 'outlook.body-content-type="text"')
+        return request_config
+
+
+    async def search_messages_by_date(self, date_str: str):
+
+        target_date = parser.parse(date_str)
+
+        start_of_day = target_date.replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0
+        )
+
+        end_of_day = start_of_day + timedelta(days=1)
+
+        filter_query = (
+            f"receivedDateTime ge {start_of_day.strftime('%Y-%m-%dT%H:%M:%SZ')} "
+            f"and receivedDateTime lt {end_of_day.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+        )
+
+        query_params = MessagesRequestBuilder.MessagesRequestBuilderGetQueryParameters(
+            filter=filter_query,
+            select=['from', 'subject', 'toRecipients', 'receivedDateTime', 'importance', 'body', 'isRead', 'webLink'],
+            top=25
+        )
+
+        request_config = MessagesRequestBuilder.MessagesRequestBuilderGetRequestConfiguration(
+            query_parameters=query_params
+        )
+
+        request_config.headers.add(
+            "Prefer",
+            'outlook.body-content-type="text"'
+        )
+
+        messages = await self.user_client.me.messages.get(
+            request_configuration=request_config
+        )
+
+        if messages and messages.value:
+            messages.value.sort(
+                key=lambda m: m.received_date_time or "",
+                reverse=True
+            )
+
+        return messages
+
+
+    async def search_messages_by_subject(self, subject: str):
+        escaped_subject = subject.replace("'", "''")
+
+        query_params = MessagesRequestBuilder.MessagesRequestBuilderGetQueryParameters(
+            filter=f"contains(subject, '{escaped_subject}')",
+            select=['from', 'subject', 'toRecipients', 'receivedDateTime', 'importance', 'body', 'isRead', 'webLink'],
+            top=25
+        )
+        request_config = MessagesRequestBuilder.MessagesRequestBuilderGetRequestConfiguration(
+            query_parameters=query_params
+        )
+        request_config.headers.add(
+            "Prefer",
+            'outlook.body-content-type="text"'
+        )
+        messages = await self.user_client.me.messages.get(
+            request_configuration=request_config
+        )
+        # Sort newest first
+        if messages and messages.value:
+            messages.value.sort(
+                key=lambda m: m.received_date_time or "",
+                reverse=True
+            )
+
+        return messages
+
+
+    async def search_messages_by_person(self, person: str):
+        query_params = MessagesRequestBuilder.MessagesRequestBuilderGetQueryParameters(
+            search=f'"{person}"',
+            select=['from', 'subject', 'toRecipients', 'receivedDateTime', 'importance', 'body', 'isRead', 'webLink'],
+            top=25
+        )
+
+        request_config = MessagesRequestBuilder.MessagesRequestBuilderGetRequestConfiguration(
+            query_parameters=query_params
+        )
+
+        request_config.headers.add("ConsistencyLevel", "eventual")
+        request_config.headers.add("Prefer", 'outlook.body-content-type="text"')
+
+        messages = await self.user_client.me.messages.get(
+            request_configuration=request_config
+        )
+
+        if messages and messages.value:
+            messages.value.sort(
+                key=lambda m: m.received_date_time or "",
+                reverse=True
+            )
+
+        return messages
+
 
 """
     'subject',

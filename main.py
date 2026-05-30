@@ -507,23 +507,64 @@ def index_inbox():
 
 @app.post("/search")
 def search():
-    """
-    Searches the mailbox via Microsoft Graph using a keyword.
-    Body: { "query": "keyword" }
-    """
     data = request.get_json(silent=True)
     if not data:
         return json_error("Request body must be valid JSON.", 400)
 
+
     query = data.get("query")
+
+    # Accept multiple possible frontend field names
+    search_filter = (
+        data.get("filter")
+        or data.get("type")
+        or data.get("category")
+        or data.get("mode")
+        or "All"
+    )
+
     if not isinstance(query, str) or not query.strip():
         return json_error("'query' is required and must be a non-empty string.", 400)
 
+    if not isinstance(search_filter, str):
+        return json_error("'filter' must be a string.", 400)
+
+    query = query.strip()
+    search_filter_original = search_filter.strip()
+    search_filter_key = search_filter_original.lower()
+
+
     try:
-        messages = run_async(graph.search_messages(query.strip()))
-        if not messages or not messages.value:
-            return jsonify({"results": []})
-        return jsonify({"results": [serialize_message(m) for m in messages.value]})
+        if search_filter_key == "all":
+            messages = run_async(graph.search_messages(query))
+
+        elif search_filter_key == "from":
+            messages = run_async(graph.search_messages_by_person(query))
+
+        elif search_filter_key == "subject":
+            messages = run_async(graph.search_messages_by_subject(query))
+
+        elif search_filter_key == "date":
+            messages = run_async(graph.search_messages_by_date(query))
+
+        else:
+            return json_error(
+                f"Invalid filter '{search_filter_original}'. Use one of: All, From, Subject, Date.",
+                400
+            )
+
+        results = []
+        if messages and messages.value:
+            results = [serialize_message(m) for m in messages.value]
+
+        return jsonify({
+            "query": query,
+            "filter": search_filter_original,
+            "filter_key": search_filter_key,
+            "count": len(results),
+            "results": results
+        })
+
     except Exception as exc:
         return json_error(f"Graph search failed: {str(exc)}", 500)
 

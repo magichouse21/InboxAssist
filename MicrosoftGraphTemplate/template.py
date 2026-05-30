@@ -85,25 +85,76 @@ async def send_mail(graph: Graph):
         print('Mail sent.\n')
 
 async def filtered_search(graph: Graph):
-    keyword = input('Enter a keyword to search your Outlook mailbox: ')
 
-    messages = await graph.search_messages(keyword)
+    print('\nSearch Options:')
+    print('1. Search by keyword')
+    print('2. Search by subject')
+    print('3. Search by sender/recipient')
+    print('4. Search by date range')
+
+    try:
+        search_type = int(input('Choose search type: '))
+    except ValueError:
+        print('Invalid choice.')
+        return
+
+    if search_type == 1:
+        keyword = input('Enter keyword: ')
+        messages = await graph.search_messages(keyword)
+
+    elif search_type == 2:
+        subject = input('Enter subject text: ')
+        messages = await graph.search_messages_by_subject(subject)
+
+    elif search_type == 3:
+        person = input('Enter name or email address: ')
+        messages = await graph.search_messages_by_person(person)
+
+    elif search_type == 4:
+        date_str = input(
+            'Enter date: '
+        )
+
+        messages = await graph.search_messages_by_date(
+            date_str
+        )
+
+    else:
+        print('Invalid choice.')
+        return
 
     if messages and messages.value:
+
+        print(f'\nFound {len(messages.value)} messages:\n')
+
         for message in messages.value:
-            print('Message:', message.subject)
 
-            if message.from_ and message.from_.email_address:
-                print('  From:', message.from_.email_address.name or 'NONE')
-            else:
-                print('  From: NONE')
+            print('=' * 60)
+            print('Subject:', message.subject)
 
-            print('  Status:', 'Read' if message.is_read else 'Unread')
-            print('  Received:', message.received_date_time)
-            print('  Importance:', message.importance)
-            print('  Body:', message.body.content if message.body else 'NONE')
+            if (
+                message.from_
+                and message.from_.email_address
+            ):
+                print(
+                    'From:',
+                    message.from_.email_address.name,
+                    f'({message.from_.email_address.address})'
+                )
+
+            print('Received:', message.received_date_time)
+            print('Importance:', message.importance)
+            print('Status:', 'Read' if message.is_read else 'Unread')
+
+            if message.body:
+                print(
+                    'Body:',
+                    message.body.content[:200]
+                )
+
             print()
+
     else:
-        print('No matching messages found.\n')
+        print('\nNo matching messages found.\n')
 
 asyncio.run(main())
