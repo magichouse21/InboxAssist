@@ -6,7 +6,6 @@
  * Message types (popup → background → content):
  *   { type: "SUMMARIZE",  options: {} }
  *   { type: "SEARCH",     query: string }
- *   { type: "QA",         question: string, sessionId: string, isNewSession: bool, emailContent?: string }
  *   { type: "COMPOSE",    prompt: string, tone: string, to: string, sender_name: string }
  *   { type: "SEND",       subject: string, body: string, recipient: string }
  *   { type: "GET_EMAIL_CONTENT" }  ← forwarded to content.js
@@ -26,9 +25,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "SEARCH":
       handleSearch(message, sendResponse);
       break;
-    case "QA":
-      handleQA(message, sendResponse);
-      break;
     case "COMPOSE":
       handleCompose(message, sendResponse);
       break;
@@ -36,7 +32,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       handleSend(message, sendResponse);
       break;
     case "GET_EMAIL_CONTENT":
-      // Popup is requesting email text directly (used by Q&A on first message)
+      // Popup is requesting email text directly
       getEmailContentFromTab()
         .then(content => sendResponse({ content }))
         .catch(err   => sendResponse({ content: '', error: err.message }));
@@ -92,33 +88,6 @@ async function handleSearch({ query }, sendResponse) {
   }
 }
 
-async function handleQA({ question, sessionId, isNewSession, emailContent }, sendResponse) {
-  try {
-    const body = {
-      question,
-      session_id: sessionId,
-      new_session: isNewSession,
-    };
-    if (isNewSession) {
-      // Use content sent by popup; fall back to scraping the tab if missing
-      body.content = emailContent || await getEmailContentFromTab();
-    }
-
-    const res = await fetch(`${API_BASE}/qna`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    const data = await res.json();
-    if (!res.ok) return sendResponse({ ok: false, error: data.error });
-    sendResponse({ ok: true, answer: data.message, sessionId: data.session_id });
-
-  } catch (err) {
-    sendResponse({ ok: false, error: err.message });
-  }
-}
-
 async function handleCompose({ prompt, tone, to, sender_name }, sendResponse) {
   try {
     const res = await fetch(`${API_BASE}/write-email`, {
@@ -158,12 +127,41 @@ async function handleSend({ subject, body, recipient }, sendResponse) {
   }
 }
 
+
+// ── Content Script Injection ─────────────────────────────────────
+async function ensureContentScript(tabId) {
+  return new Promise((resolve) => {
+    // Ping the tab — if content.js is alive it responds immediately
+    chrome.tabs.sendMessage(tabId, { type: 'PING' }, (response) => {
+      if (chrome.runtime.lastError || !response?.pong) {
+        // Not injected yet — inject now
+        chrome.scripting.executeScript(
+          { target: { tabId }, files: ['js/content.js'] },
+          () => {
+            // Small delay so the listener registers before we use it
+            setTimeout(resolve, 100);
+          }
+        );
+      } else {
+        resolve(); // already injected
+      }
+    });
+  });
+}
+
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 function getEmailContentFromTab() {
   return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
       if (!tab) return reject(new Error("No active tab found"));
+
+      try {
+        await ensureContentScript(tab.id);
+      } catch (e) {
+        return reject(new Error("Failed to inject content script: " + e.message));
+      }
 
       chrome.tabs.sendMessage(tab.id, { type: "GET_EMAIL_CONTENT" }, (response) => {
         if (chrome.runtime.lastError) {
