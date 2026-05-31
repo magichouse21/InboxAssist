@@ -46,28 +46,28 @@ def ask_model(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> 
     return ask_cerebras(prompt, temperature, max_tokens)
     # return ask_deep(prompt, max_tokens)
 
-def ask_anthropic(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=max_tokens,
-        temperature=temperature,
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-    )
+# def ask_anthropic(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
+#     response = client.messages.create(
+#         model="claude-sonnet-4-20250514",
+#         max_tokens=max_tokens,
+#         temperature=temperature,
+#         messages=[
+#             {"role": "user", "content": prompt}
+#         ],
+#     )
 
-    return response.content[0].text.strip() if response.content else ""
+#     return response.content[0].text.strip() if response.content else ""
 
-def ask_chat(prompt: str, max_tokens: int = 1000) -> str:
-    response = client.responses.create(
-        model="gpt-5.5",
-        max_output_tokens=max_tokens,
-        input=[
-            {"role": "user", "content": prompt}
-        ],
-    )
+# def ask_chat(prompt: str, max_tokens: int = 1000) -> str:
+#     response = client.responses.create(
+#         model="gpt-5.5",
+#         max_output_tokens=max_tokens,
+#         input=[
+#             {"role": "user", "content": prompt}
+#         ],
+#     )
 
-    return response.output_text.strip() if response.output_text else ""
+#     return response.output_text.strip() if response.output_text else ""
 
 def ask_cerebras(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
     response = client.chat.completions.create(
@@ -82,16 +82,16 @@ def ask_cerebras(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) 
     content = response.choices[0].message.content
     return content.strip() if content else ""
 
-def ask_deep(prompt: str, max_tokens: int = 1000) -> str:
-    response = client.chat.completions.create(
-        model="deepseek-v4-flash",
-        max_tokens=max_tokens,
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-    )
+# def ask_deep(prompt: str, max_tokens: int = 1000) -> str:
+#     response = client.chat.completions.create(
+#         model="deepseek-v4-flash",
+#         max_tokens=max_tokens,
+#         messages=[
+#             {"role": "user", "content": prompt}
+#         ],
+#     )
 
-    return response.choices[0].message.content.strip()
+#     return response.choices[0].message.content.strip()
 
 # ── Microsoft Graph ───────────────────────────────────────────────────────────
 # Loaded once at startup. The device code prompt appears in the terminal the
@@ -281,29 +281,46 @@ def home():
 
 @app.post("/summarize")
 def summarize():
-    data = request.get_json(silent=True)
-    if not data:
-        return json_error("Request body must be valid JSON.", 400)
+    data = request.get_json(silent=True) or {}
+    style = data.get("style", "brief and professional")
 
-    email_text = data.get("content")
-    style      = data.get("style", "brief and professional")
-
-    if not isinstance(email_text, str) or not email_text.strip():
-        return json_error("'content' is required and must be a non-empty string.", 400)
     if not isinstance(style, str):
         return json_error("'style' must be a string.", 400)
 
     try:
+        messages = run_async(graph.get_inbox())
+        print(messages)
+
+        if not messages or not messages.value:
+            return jsonify({"message": "No inbox emails found.", "emails_used": 0})
+
+        emails = [serialize_message(m) for m in messages.value]
+
+        inbox_text = "\n\n--- EMAIL ---\n\n".join(
+            f"From: {email.get('from_name') or email.get('from') or 'Unknown'}\n"
+            f"Subject: {email.get('subject') or '(no subject)'}\n"
+            f"Received: {email.get('received') or 'Unknown'}\n"
+            f"Body:\n{email.get('body') or email.get('body_preview') or ''}"
+            for email in emails
+        )
+
         message = ask_model(
-            build_summary_prompt(email_text.strip(), style.strip() or "brief and professional"),
+            build_summary_prompt(
+                inbox_text,
+                style.strip() or "brief and professional summary of the latest 25 inbox emails"
+            ),
         )
 
         if not message:
             return json_error("Model returned an empty response.", 502)
 
-        return jsonify({"message": message})
+        return jsonify({
+            "message": message,
+            "emails_used": len(emails),
+        })
+
     except Exception as exc:
-        return json_error(f"Model request failed: {str(exc)}", 500)
+        return json_error(f"Graph/model request failed: {str(exc)}", 500)
 
 
 @app.post("/qna")
@@ -351,7 +368,7 @@ def qna():
             history=session["history"],
         )
 
-        answer = ask_deep(prompt)
+        answer = ask_model(prompt)
 
         if not answer:
             return json_error("Model returned an empty response.", 502)
@@ -395,7 +412,7 @@ def rag_qna():
         history = sessions[session_id]["history"]
         prompt  = build_rag_qa_prompt(context, question.strip(), history)
  
-        answer = ask_deep(prompt)
+        answer = ask_model(prompt)
 
         if not answer:
             return json_error("Model returned an empty response.", 502)
@@ -433,7 +450,7 @@ def write_email():
         return json_error("'sender_name' must be a string.", 400)
 
     try:
-        raw_text = ask_deep(
+        raw_text = ask_model(
             build_write_email_prompt(
                 description.strip(),
                 tone.strip() or "professional",
@@ -494,7 +511,7 @@ def index_inbox():
                 "chunks_indexed": 0,
                 "message": "All emails already indexed."
             })
-        chunks_indexed = pipeline.ingest(emails)
+        chunks_indexed = pipeline.ingest(new_emails)
  
         return jsonify({
             "ok":             True,

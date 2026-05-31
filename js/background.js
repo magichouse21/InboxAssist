@@ -26,20 +26,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "SEARCH":
       handleSearch(message, sendResponse);
       break;
-    case "QA":
-      handleQA(message, sendResponse);
-      break;
     case "COMPOSE":
       handleCompose(message, sendResponse);
       break;
     case "SEND":
       handleSend(message, sendResponse);
-      break;
-    case "GET_EMAIL_CONTENT":
-      // Popup is requesting email text directly (used by Q&A on first message)
-      getEmailContentFromTab()
-        .then(content => sendResponse({ content }))
-        .catch(err   => sendResponse({ content: '', error: err.message }));
       break;
     default:
       sendResponse({ error: `Unknown message type: ${type}` });
@@ -53,18 +44,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function handleSummarize({ options }, sendResponse) {
   try {
-    const emailContent = await getEmailContentFromTab();
-    const style = 'brief and professional';
+    const style = 'brief and professional summary of the latest 25 inbox emails';
 
     const res = await fetch(`${API_BASE}/summarize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: emailContent, style }),
+      body: JSON.stringify({ style }),
     });
 
     const data = await res.json();
     if (!res.ok) return sendResponse({ ok: false, error: data.error });
-    sendResponse({ ok: true, result: data.message });
+    sendResponse({ ok: true, result: data.message, emailsUsed: data.emails_used });
 
   } catch (err) {
     sendResponse({ ok: false, error: err.message });
@@ -105,33 +95,6 @@ async function handleSearch({ query, filter }, sendResponse) {
       filter: data.filter,
       count: data.count,
     });
-
-  } catch (err) {
-    sendResponse({ ok: false, error: err.message });
-  }
-}
-
-async function handleQA({ question, sessionId, isNewSession, emailContent }, sendResponse) {
-  try {
-    const body = {
-      question,
-      session_id: sessionId,
-      new_session: isNewSession,
-    };
-    if (isNewSession) {
-      // Use content sent by popup; fall back to scraping the tab if missing
-      body.content = emailContent || await getEmailContentFromTab();
-    }
-
-    const res = await fetch(`${API_BASE}/qna`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    const data = await res.json();
-    if (!res.ok) return sendResponse({ ok: false, error: data.error });
-    sendResponse({ ok: true, answer: data.message, sessionId: data.session_id });
 
   } catch (err) {
     sendResponse({ ok: false, error: err.message });
@@ -195,30 +158,6 @@ async function ensureContentScript(tabId) {
       } else {
         resolve(); // already injected
       }
-    });
-  });
-}
-
-
-// ── Helpers ───────────────────────────────────────────────────────
-
-function getEmailContentFromTab() {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
-      if (!tab) return reject(new Error("No active tab found"));
-
-      try {
-        await ensureContentScript(tab.id);
-      } catch (e) {
-        return reject(new Error("Failed to inject content script: " + e.message));
-      }
-
-      chrome.tabs.sendMessage(tab.id, { type: "GET_EMAIL_CONTENT" }, (response) => {
-        if (chrome.runtime.lastError) {
-          return reject(new Error(chrome.runtime.lastError.message));
-        }
-        resolve(response?.content ?? "");
-      });
     });
   });
 }
