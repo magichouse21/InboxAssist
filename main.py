@@ -93,6 +93,14 @@ def ask_cerebras(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) 
 
 #     return response.choices[0].message.content.strip()
 
+def compact_email_for_summary(email: dict) -> str:
+    return (
+        f"From: {email.get('from_name') or email.get('from') or 'Unknown'}\n"
+        f"Subject: {email.get('subject') or '(no subject)'}\n"
+        f"Received: {email.get('received') or 'Unknown'}\n"
+        f"Preview:\n{email.get('body_preview') or ''}"
+    )
+
 # ── Microsoft Graph ───────────────────────────────────────────────────────────
 # Loaded once at startup. The device code prompt appears in the terminal the
 # first time a Graph-backed endpoint is hit and the credential has no cached
@@ -289,7 +297,6 @@ def summarize():
 
     try:
         messages = run_async(graph.get_inbox())
-        print(messages)
 
         if not messages or not messages.value:
             return jsonify({"message": "No inbox emails found.", "emails_used": 0})
@@ -297,19 +304,16 @@ def summarize():
         emails = [serialize_message(m) for m in messages.value]
 
         inbox_text = "\n\n--- EMAIL ---\n\n".join(
-            f"From: {email.get('from_name') or email.get('from') or 'Unknown'}\n"
-            f"Subject: {email.get('subject') or '(no subject)'}\n"
-            f"Received: {email.get('received') or 'Unknown'}\n"
-            f"Body:\n{email.get('body') or email.get('body_preview') or ''}"
+            compact_email_for_summary(email)
             for email in emails
         )
 
-        message = ask_model(
-            build_summary_prompt(
-                inbox_text,
-                style.strip() or "brief and professional summary of the latest 25 inbox emails"
-            ),
+        prompt = build_summary_prompt(
+            inbox_text,
+            style.strip() or "brief and professional summary of the latest 25 inbox emails"
         )
+
+        message = ask_model(prompt)
 
         if not message:
             return json_error("Model returned an empty response.", 502)
