@@ -51,7 +51,7 @@ class Graph:
         query_params = MessagesRequestBuilder.MessagesRequestBuilderGetQueryParameters(
             # Only request specific properties
             select=['from', 'subject', 'toRecipients', 'receivedDateTime', 'importance', 'bodyPreview', 'webLink'],
-            # Get at most 10 results
+            # Get at most 25 results
             top=25,
             # Sort by received time, newest first
             orderby=['receivedDateTime DESC']
@@ -62,6 +62,22 @@ class Graph:
         request_config.headers.add("Prefer", 'outlook.body-content-type="text"')
         messages = await self.user_client.me.mail_folders.by_mail_folder_id('inbox').messages.get(
                 request_configuration=request_config)
+        return messages
+    
+    async def get_unread_inbox(self):
+        # Same as get_inbox but only for unread emails using isRead property
+        query_params = MessagesRequestBuilder.MessagesRequestBuilderGetQueryParameters(
+            select=['from', 'subject', 'toRecipients', 'receivedDateTime', 'importance', 'bodyPreview', 'isRead', 'webLink'],
+            filter="isRead eq false",
+            top=25,
+            orderby=['receivedDateTime DESC']
+        )
+        request_config = MessagesRequestBuilder.MessagesRequestBuilderGetRequestConfiguration(
+            query_parameters=query_params
+        )
+        request_config.headers.add("Prefer", 'outlook.body-content-type="text"')
+        messages = await self.user_client.me.mail_folders.by_mail_folder_id('inbox').messages.get(
+            request_configuration=request_config)
         return messages
 
     async def send_mail(self, subject: str, body: str, recipient: str):

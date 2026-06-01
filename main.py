@@ -296,7 +296,7 @@ def summarize():
         return json_error("'style' must be a string.", 400)
 
     try:
-        messages = run_async(graph.get_inbox())
+        messages = run_async(graph.get_unread_inbox())
 
         if not messages or not messages.value:
             return jsonify({"message": "No inbox emails found.", "emails_used": 0})
