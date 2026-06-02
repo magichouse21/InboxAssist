@@ -288,7 +288,7 @@ def summarize():
         messages = run_async(graph.get_unread_inbox())
 
         if not messages or not messages.value:
-            return jsonify({"message": "No inbox emails found.", "emails_used": 0})
+            return jsonify({"message": "No unread inbox emails found.", "emails_used": 0})
 
         emails = [serialize_message(m) for m in messages.value]
 
@@ -315,113 +315,6 @@ def summarize():
     except Exception as exc:
         return json_error(f"Graph/model request failed: {str(exc)}", 500)
 
-
-@app.post("/qna")
-def qna():
-    data = request.get_json(silent=True)
-    if not data:
-        return json_error("Request body must be valid JSON.", 400)
-
-    question    = data.get("question")
-    new_session = data.get("new_session", True)
-    session_id  = data.get("session_id")
-    email_text  = data.get("content")
-
-    if not isinstance(question, str) or not question.strip():
-        return json_error("'question' is required and must be a non-empty string.", 400)
-    if not isinstance(new_session, bool):
-        return json_error("'new_session' must be true or false.", 400)
-    if not isinstance(session_id, str) or not session_id.strip():
-        return json_error("'session_id' is required and must be a non-empty string.", 400)
-
-    session_id = session_id.strip()
-
-    if email_text is not None and not isinstance(email_text, str):
-        return json_error("'content' must be a string when provided.", 400)
-
-    try:
-        if new_session:
-            if not isinstance(email_text, str) or not email_text.strip():
-                return json_error(
-                    "'content' is required and must be a non-empty string when starting a new session.",
-                    400,
-                )
-            sessions[session_id] = {"email_text": email_text.strip(), "history": []}
-
-        if session_id not in sessions:
-            return json_error(
-                "Session not found. Start a new session with 'new_session': true and include 'content'.",
-                404,
-            )
-
-        session = sessions[session_id]
-        prompt  = build_qa_prompt(
-            email_text=session["email_text"],
-            question=question.strip(),
-            history=session["history"],
-        )
-
-        answer = ask_model(prompt)
-
-        if not answer:
-            return json_error("Model returned an empty response.", 502)
-
-        session["history"].append({"question": question.strip(), "answer": answer})
-
-        return jsonify({
-            "session_id":    session_id,
-            "message":       answer,
-            "history_count": len(session["history"]),
-        })
-    except Exception as exc:
-        return json_error(f"Gemini request failed: {str(exc)}", 500)
-
-@app.post("/rag-qna")
-def rag_qna():
-    """
-    RAG Q&A — retrieves relevant chunks from the indexed mailbox,
-    then answers using only those chunks.
-    Requires /index-inbox to have been called first.
-    """
-    data = request.get_json(silent=True)
-    if not data:
-        return json_error("Request body must be valid JSON.", 400)
- 
-    question   = data.get("question")
-    session_id = data.get("session_id", "rag_default")
- 
-    if not isinstance(question, str) or not question.strip():
-        return json_error("'question' is required.", 400)
- 
-    if pipeline.chunk_count == 0:
-        return json_error("Inbox not indexed yet. Call POST /index-inbox first.", 400)
- 
-    try:
-        context = pipeline.query_as_context(question.strip())
- 
-        if session_id not in sessions:
-            sessions[session_id] = {"email_text": "", "history": []}
- 
-        history = sessions[session_id]["history"]
-        prompt  = build_rag_qa_prompt(context, question.strip(), history)
- 
-        answer = ask_model(prompt)
-
-        if not answer:
-            return json_error("Model returned an empty response.", 502)
- 
-        sessions[session_id]["history"].append({"question": question.strip(), "answer": answer})
- 
-        return jsonify({
-            "session_id":    session_id,
-            "message":       answer,
-            "history_count": len(sessions[session_id]["history"]),
-            "chunks_used":   context.count("---") + 1,
-        })
-    except Exception as exc:
-        return json_error(f"RAG Q&A failed: {str(exc)}", 500)
- 
- 
 @app.post("/write-email")
 def write_email():
     data = request.get_json(silent=True)

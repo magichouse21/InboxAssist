@@ -89,6 +89,11 @@ async function handleSearch({ query, filter }, sendResponse) {
     });
 
     const data = await res.json();
+  
+    } catch (err) {
+    sendResponse({ ok: false, error: err.message });
+  }
+}
 
 async function handleCompose({ prompt, tone, to, sender_name }, sendResponse) {
   try {
