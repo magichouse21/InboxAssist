@@ -32,7 +32,7 @@
     "content_scripts": [
         {
             "js": ["js/content.js"],
-            "css": ["css/content.css"],
+            "css": ["css/popup.css"],
             "run_at": "document_idle",
             "matches": [
                 "https://outlook.cloud.microsoft/mail/*",
