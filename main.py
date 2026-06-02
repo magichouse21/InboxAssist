@@ -1,3 +1,4 @@
+import asyncio
 import configparser
 import json
 import os
@@ -19,6 +20,9 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+def run_async(coro):
+    return asyncio.run(coro)
+
 # ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 # MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -30,7 +34,7 @@ CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
 # if not OPENAI_API_KEY:
 #     raise RuntimeError("OPENAI_API_KEY is missing. Add it to your .env file.")
 if not CEREBRAS_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY is missing. Add it to your .env file.")
+    raise RuntimeError("CEREBRAS_API_KEY is missing. Add it to your .env file.")
 # if not DEEPSEEK_API_KEY:
 #     raise RuntimeError("DEEPSEEK_API_KEY is missing. Add it to your .env file.")
 
