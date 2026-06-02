@@ -1,4 +1,3 @@
-import asyncio
 import configparser
 import json
 import os
@@ -102,9 +101,6 @@ def compact_email_for_summary(email: dict) -> str:
     )
 
 # ── Microsoft Graph ───────────────────────────────────────────────────────────
-# Loaded once at startup. The device code prompt appears in the terminal the
-# first time a Graph-backed endpoint is hit and the credential has no cached
-# token. Subsequent calls reuse the cached token automatically.
 
 _config = configparser.ConfigParser()
 _config.read([
@@ -124,17 +120,6 @@ def json_error(message: str, status_code: int):
     response.status_code = status_code
     return response
 
-def run_async(coro):
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        return loop.run_until_complete(coro)
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(coro)
 
 def serialize_message(msg) -> Dict[str, Any]:
     """Convert a Graph Message object to a JSON-safe dict."""
@@ -477,13 +462,13 @@ def write_email():
 # ── Graph endpoints ───────────────────────────────────────────────────────────
 
 @app.get("/inbox")
-def inbox():
+async def inbox():
     """
     Returns the latest 25 inbox messages via Microsoft Graph.
     Triggers device code auth in the terminal on first call if no token is cached.
     """
     try:
-        messages = run_async(graph.get_inbox())
+        messages = await graph.get_inbox()
         if not messages or not messages.value:
             return jsonify({"emails": []})
         return jsonify({"emails": [serialize_message(m) for m in messages.value]})
@@ -527,7 +512,11 @@ def index_inbox():
 
 
 @app.post("/search")
-def search():
+async def search():
+    """
+    Searches the mailbox via Microsoft Graph using a keyword.
+    Body: { "query": "keyword" }
+    """
     data = request.get_json(silent=True)
     if not data:
         return json_error("Request body must be valid JSON.", 400)
@@ -556,42 +545,16 @@ def search():
 
 
     try:
-        if search_filter_key == "all":
-            messages = run_async(graph.search_messages(query))
-
-        elif search_filter_key == "from":
-            messages = run_async(graph.search_messages_by_person(query))
-
-        elif search_filter_key == "subject":
-            messages = run_async(graph.search_messages_by_subject(query))
-
-        elif search_filter_key == "date":
-            messages = run_async(graph.search_messages_by_date(query))
-
-        else:
-            return json_error(
-                f"Invalid filter '{search_filter_original}'. Use one of: All, From, Subject, Date.",
-                400
-            )
-
-        results = []
-        if messages and messages.value:
-            results = [serialize_message(m) for m in messages.value]
-
-        return jsonify({
-            "query": query,
-            "filter": search_filter_original,
-            "filter_key": search_filter_key,
-            "count": len(results),
-            "results": results
-        })
-
+        messages = await graph.search_messages(query.strip())
+        if not messages or not messages.value:
+            return jsonify({"results": []})
+        return jsonify({"results": [serialize_message(m) for m in messages.value]})
     except Exception as exc:
         return json_error(f"Graph search failed: {str(exc)}", 500)
 
 
 @app.post("/send")
-def send():
+async def send():
     """
     Sends an email via Microsoft Graph.
     Body: { "subject": "...", "body": "...", "recipient": "..." }
@@ -612,7 +575,7 @@ def send():
         return json_error("'recipient' is required and must be a non-empty string.", 400)
 
     try:
-        run_async(graph.send_mail(subject.strip(), body.strip(), recipient.strip()))
+        await graph.send_mail(subject.strip(), body.strip(), recipient.strip())
         return jsonify({"ok": True, "message": "Email sent successfully."})
     except Exception as exc:
         return json_error(f"Graph send failed: {str(exc)}", 500)

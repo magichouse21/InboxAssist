@@ -93,84 +93,17 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
         </div>`
       ).join('');
 
-      results.querySelectorAll('.result-item[data-url]').forEach(item => {
-        item.addEventListener('click', () => {
-          chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-            chrome.tabs.update(tab.id, { url: item.dataset.url });
-          });
+    // make results clickable
+    results.querySelectorAll('.result-item[data-url]').forEach(item => {
+      item.addEventListener('click', () => {
+        chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+          chrome.tabs.update(tab.id, { url: item.dataset.url });
         });
+        
       });
-    }
-  );
-});
-
-  // ── Q&A chat ────────────────────────────────────────────────────
-  let qaSessionId = crypto.randomUUID();
-  let qaIsNewSession = true;
-  const qaInput  = document.getElementById('qa-input');
-  const qaBtn    = document.getElementById('btn-qa-send');
-  const chatWin  = document.getElementById('chat-window');
-
-  document.querySelector('[data-target="view-qa"]')?.addEventListener('click', () => {
-    qaSessionId    = crypto.randomUUID();
-    qaIsNewSession = true;
-  });
-
-  qaBtn?.addEventListener('click', sendQA);
-  qaInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendQA();
-  });
-
-  function sendQA() {
-    const text = qaInput?.value.trim();
-    if (!text) return;
-
-    appendBubble('user', text);
-    qaInput.value = '';
-    qaInput.disabled = true;
-    qaBtn.disabled   = true;
-
-    const thinking = appendBubble('assistant', '…');
-
-    if (qaIsNewSession) {
-      chrome.runtime.sendMessage({ type: 'GET_EMAIL_CONTENT' }, (contentResponse) => {
-        const emailContent = contentResponse?.content || '';
-        dispatchQA(text, thinking, emailContent);
-      });
-    } else {
-      dispatchQA(text, thinking, null);
-    }
-  }
-
-  function dispatchQA(question, thinkingBubble, emailContent) {
-    const payload = {
-      type:         'QA',
-      question,
-      sessionId:    qaSessionId,
-      isNewSession: qaIsNewSession,
-    };
-    if (qaIsNewSession && emailContent) payload.emailContent = emailContent;
-
-    chrome.runtime.sendMessage(payload, ({ ok, answer, error }) => {
-      thinkingBubble.querySelector('.bubble-content').textContent = ok ? answer : `Error: ${error}`;
-      chatWin.scrollTop = chatWin.scrollHeight;
-
-      if (ok) qaIsNewSession = false;
-
-      qaInput.disabled = false;
-      qaBtn.disabled   = false;
-      qaInput.focus();
     });
-  }
-
-  function appendBubble(role, text) {
-    const bubble = document.createElement('div');
-    bubble.className = `chat-bubble ${role}`;
-    bubble.innerHTML = `<div class="bubble-content">${text}</div>`;
-    chatWin?.appendChild(bubble);
-    chatWin.scrollTop = chatWin.scrollHeight;
-    return bubble;
-  }
+    });
+  });
 
   // ── Compose ─────────────────────────────────────────────────────
   document.getElementById('btn-compose')?.addEventListener('click', () => {

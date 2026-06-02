@@ -6,7 +6,6 @@
  * Message types (popup → background → content):
  *   { type: "SUMMARIZE",  options: {} }
  *   { type: "SEARCH",     query: string }
- *   { type: "QA",         question: string, sessionId: string, isNewSession: bool, emailContent?: string }
  *   { type: "COMPOSE",    prompt: string, tone: string, to: string, sender_name: string }
  *   { type: "SEND",       subject: string, body: string, recipient: string }
  *   { type: "GET_EMAIL_CONTENT" }  ← forwarded to content.js
@@ -31,6 +30,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
     case "SEND":
       handleSend(message, sendResponse);
+      break;
+    case "GET_EMAIL_CONTENT":
+      // Popup is requesting email text directly
+      getEmailContentFromTab()
+        .then(content => sendResponse({ content }))
+        .catch(err   => sendResponse({ content: '', error: err.message }));
       break;
     default:
       sendResponse({ error: `Unknown message type: ${type}` });
@@ -84,22 +89,6 @@ async function handleSearch({ query, filter }, sendResponse) {
     });
 
     const data = await res.json();
-
-    if (!res.ok) {
-      return sendResponse({ ok: false, error: data.error });
-    }
-
-    sendResponse({
-      ok: true,
-      results: data.results,
-      filter: data.filter,
-      count: data.count,
-    });
-
-  } catch (err) {
-    sendResponse({ ok: false, error: err.message });
-  }
-}
 
 async function handleCompose({ prompt, tone, to, sender_name }, sendResponse) {
   try {
@@ -158,6 +147,30 @@ async function ensureContentScript(tabId) {
       } else {
         resolve(); // already injected
       }
+    });
+  });
+}
+
+
+// ── Helpers ───────────────────────────────────────────────────────
+
+function getEmailContentFromTab() {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
+      if (!tab) return reject(new Error("No active tab found"));
+
+      try {
+        await ensureContentScript(tab.id);
+      } catch (e) {
+        return reject(new Error("Failed to inject content script: " + e.message));
+      }
+
+      chrome.tabs.sendMessage(tab.id, { type: "GET_EMAIL_CONTENT" }, (response) => {
+        if (chrome.runtime.lastError) {
+          return reject(new Error(chrome.runtime.lastError.message));
+        }
+        resolve(response?.content ?? "");
+      });
     });
   });
 }
