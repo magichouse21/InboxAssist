@@ -49,44 +49,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function handleSummarize({ options }, sendResponse) {
   try {
-    const emailContent = await getEmailContentFromTab();
-    const style = 'brief and professional';
+    const style = 'brief and professional summary of the latest 25 inbox emails';
 
     const res = await fetch(`${API_BASE}/summarize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: emailContent, style }),
+      body: JSON.stringify({ style }),
     });
 
     const data = await res.json();
     if (!res.ok) return sendResponse({ ok: false, error: data.error });
-    sendResponse({ ok: true, result: data.message });
+    sendResponse({ ok: true, result: data.message, emailsUsed: data.emails_used });
 
   } catch (err) {
     sendResponse({ ok: false, error: err.message });
   }
 }
 
-async function handleSearch({ query }, sendResponse) {
+async function handleSearch({ query, filter }, sendResponse) {
   try {
     if (!query || !query.trim()) {
       return sendResponse({ ok: false, error: "Query cannot be empty." });
     }
 
+    const selectedFilter = filter || "all";
+
+    console.log("BACKGROUND SEARCH:", {
+      query: query.trim(),
+      filter: selectedFilter,
+    });
+
     const res = await fetch(`${API_BASE}/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({
+        query: query.trim(),
+        filter: selectedFilter,
+      }),
     });
 
     const data = await res.json();
-    if (!res.ok) return sendResponse({ ok: false, error: data.error });
-    sendResponse({ ok: true, results: data.results });
-
-  } catch (err) {
-    sendResponse({ ok: false, error: err.message });
-  }
-}
 
 async function handleCompose({ prompt, tone, to, sender_name }, sendResponse) {
   try {

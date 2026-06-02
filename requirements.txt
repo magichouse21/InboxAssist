@@ -1,0 +1,8 @@
+flask
+flask-cors
+python-dotenv
+google-genai
+azure-identity
+msgraph-sdk
+faiss-cpu
+numpy
