@@ -516,11 +516,7 @@ def index_inbox():
 
 
 @app.post("/search")
-async def search():
-    """
-    Searches the mailbox via Microsoft Graph using a keyword.
-    Body: { "query": "keyword" }
-    """
+def search():
     data = request.get_json(silent=True)
     if not data:
         return json_error("Request body must be valid JSON.", 400)
@@ -549,10 +545,36 @@ async def search():
 
 
     try:
-        messages = await graph.search_messages(query.strip())
-        if not messages or not messages.value:
-            return jsonify({"results": []})
-        return jsonify({"results": [serialize_message(m) for m in messages.value]})
+        if search_filter_key == "all":
+            messages = run_async(graph.search_messages(query))
+
+        elif search_filter_key == "from":
+            messages = run_async(graph.search_messages_by_person(query))
+
+        elif search_filter_key == "subject":
+            messages = run_async(graph.search_messages_by_subject(query))
+
+        elif search_filter_key == "date":
+            messages = run_async(graph.search_messages_by_date(query))
+
+        else:
+            return json_error(
+                f"Invalid filter '{search_filter_original}'. Use one of: All, From, Subject, Date.",
+                400
+            )
+
+        results = []
+        if messages and messages.value:
+            results = [serialize_message(m) for m in messages.value]
+
+        return jsonify({
+            "query": query,
+            "filter": search_filter_original,
+            "filter_key": search_filter_key,
+            "count": len(results),
+            "results": results
+        })
+
     except Exception as exc:
         return json_error(f"Graph search failed: {str(exc)}", 500)
 
