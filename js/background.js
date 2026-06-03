@@ -6,7 +6,7 @@
  * Message types (popup → background → content):
  *   { type: "SUMMARIZE",  options: {} }
  *   { type: "SEARCH",     query: string }
- *   { type: "QA",         question: string, sessionId: string, isNewSession: bool, emailContent?: string }
+ *  
  *   { type: "COMPOSE",    prompt: string, tone: string, to: string, sender_name: string }
  *   { type: "SEND",       subject: string, body: string, recipient: string }
  *   { type: "GET_EMAIL_CONTENT" }  ← forwarded to content.js
@@ -162,20 +162,3 @@ async function ensureContentScript(tabId) {
   });
 }
 
-// async function callClaudeAPI(prompt) {
-//   const response = await fetch("https://api.anthropic.com/v1/messages", {
-//     method: "POST",
-//     headers: {
-//       "Content-Type": "application/json",
-//       "x-api-key": "<YOUR_API_KEY>",
-//       "anthropic-version": "2023-06-01",
-//     },
-//     body: JSON.stringify({
-//       model: "claude-opus-4-6",
-//       max_tokens: 1024,
-//       messages: [{ role: "user", content: prompt }],
-//     }),
-//   });
-//   const data = await response.json();
-//   return data.content[0].text;
-// }
