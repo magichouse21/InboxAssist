@@ -6,3 +6,6 @@ azure-identity
 msgraph-sdk
 faiss-cpu
 numpy
+pypdf
+python-docx
+openpyxl

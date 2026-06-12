@@ -67,7 +67,7 @@ class Graph:
     async def get_unread_inbox(self):
         # Same as get_inbox but only for unread emails using isRead property
         query_params = MessagesRequestBuilder.MessagesRequestBuilderGetQueryParameters(
-            select=['from', 'subject', 'toRecipients', 'receivedDateTime', 'importance', 'bodyPreview', 'isRead', 'webLink'],
+            select=['from', 'subject', 'receivedDateTime', 'importance', 'bodyPreview', 'hasAttachments', 'webLink', 'id'],
             filter="isRead eq false",
             top=25,
             orderby=['receivedDateTime DESC']
@@ -79,6 +79,11 @@ class Graph:
         messages = await self.user_client.me.mail_folders.by_mail_folder_id('inbox').messages.get(
             request_configuration=request_config)
         return messages
+    
+    async def get_attachments(self, message_id: str):
+        #Fetch all attachments for a given message ID
+        attachments = await self.user_client.me.messages.by_message_id(message_id).attachments.get()
+        return attachments
 
     async def send_mail(self, subject: str, body: str, recipient: str):
         message = Message()

@@ -3,6 +3,8 @@ import configparser
 import json
 import os
 from typing import Dict, List, Any
+import base64
+import io
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
@@ -14,6 +16,8 @@ print("Pipeline loaded:", EmailPipeline)
 pipeline = EmailPipeline()
 
 from MicrosoftGraphTemplate.graph import Graph
+
+
 
 load_dotenv()
 
@@ -161,7 +165,95 @@ def serialize_message(msg) -> Dict[str, Any]:
             if getattr(msg, "body", None) and msg.body.content else None
         ),
         "web_link":     getattr(msg, "web_link", None),
+        "has_attachments": getattr(msg, "has_attachments", False),
     }
+
+def parse_attachment(attachment) -> str:
+    """
+    Extract text from an attachment based on its content type.
+    Returns extracted text or empty string if unsupported.
+    """
+    name         = getattr(attachment, 'name', '') or ''
+    content_type = getattr(attachment, 'content_type', '') or ''
+    content_b64  = getattr(attachment, 'content_bytes', None)
+
+    if not content_b64:
+        return ''
+
+    try:
+        raw_bytes = base64.b64decode(content_b64)
+    except Exception:
+        return ''
+
+    name_lower = name.lower()
+
+    # ── PDF ──
+    if 'pdf' in content_type or name_lower.endswith('.pdf'):
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(raw_bytes))
+            return '\n'.join(
+                page.extract_text() or '' for page in reader.pages
+            ).strip()
+        except Exception as e:
+            return f'[PDF parse error: {e}]'
+
+    # ── Word (.docx) ──
+    if 'wordprocessingml' in content_type or name_lower.endswith('.docx'):
+        try:
+            from docx import Document
+            doc = Document(io.BytesIO(raw_bytes))
+            return '\n'.join(p.text for p in doc.paragraphs if p.text).strip()
+        except Exception as e:
+            return f'[DOCX parse error: {e}]'
+
+    # ── Excel (.xlsx) ──
+    if 'spreadsheetml' in content_type or name_lower.endswith('.xlsx'):
+        try:
+            from openpyxl import load_workbook
+            wb = load_workbook(io.BytesIO(raw_bytes), read_only=True, data_only=True)
+            lines = []
+            for sheet in wb.worksheets:
+                lines.append(f'[Sheet: {sheet.title}]')
+                for row in sheet.iter_rows(values_only=True):
+                    row_text = '\t'.join(str(c) for c in row if c is not None)
+                    if row_text.strip():
+                        lines.append(row_text)
+            return '\n'.join(lines).strip()
+        except Exception as e:
+            return f'[XLSX parse error: {e}]'
+
+    # ── Plain text ──
+    if 'text/plain' in content_type or name_lower.endswith('.txt'):
+        try:
+            return raw_bytes.decode('utf-8', errors='ignore').strip()
+        except Exception:
+            return ''
+
+    # unsupported type
+    return f'[Unsupported attachment: {name}]'
+
+
+def get_attachment_text(message_id: str) -> str:
+    """
+    Fetch and parse all attachments for a message.
+    Returns a combined text block or empty string.
+    """
+    try:
+        attachments = run_async(graph.get_attachments(message_id))
+        if not attachments or not attachments.value:
+            return ''
+
+        parts = []
+        for att in attachments.value:
+            name = getattr(att, 'name', 'attachment')
+            text = parse_attachment(att)
+            if text:
+                parts.append(f'--- Attachment: {name} ---\n{text}')
+
+        return '\n\n'.join(parts)
+    except Exception as e:
+        return f'[Attachment fetch error: {e}]'
 
 # ── Prompt builders ───────────────────────────────────────────────────────────
 
@@ -169,9 +261,11 @@ def build_summary_prompt(email_text: str, style: str) -> str:
     return f"""
 You summarize emails.
 
-Summarize the email below in this style: {style}.
+For EACH email, write a separate summary on its own line, in this style: {style}.
 
-Keep the result clear, practical, and concise.
+Clarify sender, subject, and received date in each bullet.
+
+One bullet per email, each on its own line. Do not combine multiple emails into one bullet. Keep each summary clear, practical, and concise.
 
 Email:
 {email_text}
@@ -291,6 +385,7 @@ def home():
 def summarize():
     data = request.get_json(silent=True) or {}
     style = data.get("style", "brief and professional")
+    include_attachments = data.get("include_attachments", True)
 
     if not isinstance(style, str):
         return json_error("'style' must be a string.", 400)
@@ -303,10 +398,20 @@ def summarize():
 
         emails = [serialize_message(m) for m in messages.value]
 
-        inbox_text = "\n\n--- EMAIL ---\n\n".join(
-            compact_email_for_summary(email)
-            for email in emails
-        )
+        # build combined text — email body + attachments for each
+        parts = []
+        for email in emails:
+            text = compact_email_for_summary(email)
+
+            # fetch and parse attachments if the email has any
+            if include_attachments and email.get('has_attachments') and email.get('id'):
+                attachment_text = get_attachment_text(email['id'])
+                if attachment_text:
+                    text += f"\n\nAttachments:\n{attachment_text}"
+
+            parts.append(text)
+
+        inbox_text = "\n\n--- EMAIL ---\n\n".join(parts)
 
         prompt = build_summary_prompt(
             inbox_text,
@@ -326,112 +431,6 @@ def summarize():
     except Exception as exc:
         return json_error(f"Graph/model request failed: {str(exc)}", 500)
 
-
-@app.post("/qna")
-def qna():
-    data = request.get_json(silent=True)
-    if not data:
-        return json_error("Request body must be valid JSON.", 400)
-
-    question    = data.get("question")
-    new_session = data.get("new_session", True)
-    session_id  = data.get("session_id")
-    email_text  = data.get("content")
-
-    if not isinstance(question, str) or not question.strip():
-        return json_error("'question' is required and must be a non-empty string.", 400)
-    if not isinstance(new_session, bool):
-        return json_error("'new_session' must be true or false.", 400)
-    if not isinstance(session_id, str) or not session_id.strip():
-        return json_error("'session_id' is required and must be a non-empty string.", 400)
-
-    session_id = session_id.strip()
-
-    if email_text is not None and not isinstance(email_text, str):
-        return json_error("'content' must be a string when provided.", 400)
-
-    try:
-        if new_session:
-            if not isinstance(email_text, str) or not email_text.strip():
-                return json_error(
-                    "'content' is required and must be a non-empty string when starting a new session.",
-                    400,
-                )
-            sessions[session_id] = {"email_text": email_text.strip(), "history": []}
-
-        if session_id not in sessions:
-            return json_error(
-                "Session not found. Start a new session with 'new_session': true and include 'content'.",
-                404,
-            )
-
-        session = sessions[session_id]
-        prompt  = build_qa_prompt(
-            email_text=session["email_text"],
-            question=question.strip(),
-            history=session["history"],
-        )
-
-        answer = ask_model(prompt)
-
-        if not answer:
-            return json_error("Model returned an empty response.", 502)
-
-        session["history"].append({"question": question.strip(), "answer": answer})
-
-        return jsonify({
-            "session_id":    session_id,
-            "message":       answer,
-            "history_count": len(session["history"]),
-        })
-    except Exception as exc:
-        return json_error(f"Gemini request failed: {str(exc)}", 500)
-
-@app.post("/rag-qna")
-def rag_qna():
-    """
-    RAG Q&A — retrieves relevant chunks from the indexed mailbox,
-    then answers using only those chunks.
-    Requires /index-inbox to have been called first.
-    """
-    data = request.get_json(silent=True)
-    if not data:
-        return json_error("Request body must be valid JSON.", 400)
- 
-    question   = data.get("question")
-    session_id = data.get("session_id", "rag_default")
- 
-    if not isinstance(question, str) or not question.strip():
-        return json_error("'question' is required.", 400)
- 
-    if pipeline.chunk_count == 0:
-        return json_error("Inbox not indexed yet. Call POST /index-inbox first.", 400)
- 
-    try:
-        context = pipeline.query_as_context(question.strip())
- 
-        if session_id not in sessions:
-            sessions[session_id] = {"email_text": "", "history": []}
- 
-        history = sessions[session_id]["history"]
-        prompt  = build_rag_qa_prompt(context, question.strip(), history)
- 
-        answer = ask_model(prompt)
-
-        if not answer:
-            return json_error("Model returned an empty response.", 502)
- 
-        sessions[session_id]["history"].append({"question": question.strip(), "answer": answer})
- 
-        return jsonify({
-            "session_id":    session_id,
-            "message":       answer,
-            "history_count": len(sessions[session_id]["history"]),
-            "chunks_used":   context.count("---") + 1,
-        })
-    except Exception as exc:
-        return json_error(f"RAG Q&A failed: {str(exc)}", 500)
- 
  
 @app.post("/write-email")
 def write_email():

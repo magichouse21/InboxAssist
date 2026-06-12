@@ -48,8 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
       { type: 'SUMMARIZE', options: { bullets } },
       ({ ok, result, error }) => {
         output.innerHTML = ok
-          ? `<p class="summary-text">${result}</p>`
-          : `<p class="summary-text" style="color:red">${error}</p>`;
+          ? `<div class="summary-text" style="white-space: pre-line">${escapeHtml(result)}</div>`
+          : `<p class="summary-text" style="color:red">${escapeHtml(error)}</p>`;
       }
     );
   });
