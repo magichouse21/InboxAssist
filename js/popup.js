@@ -93,17 +93,16 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
         </div>`
       ).join('');
 
-    // make results clickable
-    results.querySelectorAll('.result-item[data-url]').forEach(item => {
-      item.addEventListener('click', () => {
-        chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-          chrome.tabs.update(tab.id, { url: item.dataset.url });
+      results.querySelectorAll('.result-item[data-url]').forEach(item => {
+        item.addEventListener('click', () => {
+          chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+            chrome.tabs.update(tab.id, { url: item.dataset.url });
+          });
         });
-        
       });
-    });
-    });
-  });
+    }
+  );
+});
 
   // ── Compose ─────────────────────────────────────────────────────
   document.getElementById('btn-compose')?.addEventListener('click', () => {

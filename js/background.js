@@ -89,8 +89,19 @@ async function handleSearch({ query, filter }, sendResponse) {
     });
 
     const data = await res.json();
-  
-    } catch (err) {
+
+    if (!res.ok) {
+      return sendResponse({ ok: false, error: data.error });
+    }
+
+    sendResponse({
+      ok: true,
+      results: data.results,
+      filter: data.filter,
+      count: data.count,
+    });
+
+  } catch (err) {
     sendResponse({ ok: false, error: err.message });
   }
 }
