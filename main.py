@@ -74,7 +74,7 @@ def ask_model(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> 
 
 def ask_cerebras(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
     response = client.chat.completions.create(
-        model="gpt-oss-120b",
+        model="gpt-oss",
         temperature=temperature,
         max_tokens=max_tokens,
         messages=[
