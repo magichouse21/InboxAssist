@@ -9,6 +9,8 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from anthropic import Anthropic
 from openai import OpenAI
+from google import genai
+from google.genai import types
 from email_pipeline import EmailPipeline
 print("Pipeline loaded:", EmailPipeline) 
 pipeline = EmailPipeline()
@@ -26,28 +28,33 @@ def run_async(coro):
 # ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 # MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
+# CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
 # DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # if not ANTHROPIC_API_KEY:
 #     raise RuntimeError("ANTHROPIC_API_KEY is missing. Add it to your .env file.")
 # if not OPENAI_API_KEY:
 #     raise RuntimeError("OPENAI_API_KEY is missing. Add it to your .env file.")
-if not CEREBRAS_API_KEY:
-    raise RuntimeError("CEREBRAS_API_KEY is missing. Add it to your .env file.")
+# if not CEREBRAS_API_KEY:
+#     raise RuntimeError("CEREBRAS_API_KEY is missing. Add it to your .env file.")
 # if not DEEPSEEK_API_KEY:
 #     raise RuntimeError("DEEPSEEK_API_KEY is missing. Add it to your .env file.")
+if not GEMINI_API_KEY:
+    raise RuntimeError("GEMINI_API_KEY is missing. Add it to your .env file.")
 
 # client = Anthropic(api_key=ANTHROPIC_API_KEY)
 # client = OpenAI(api_key=OPENAI_API_KEY)
-client = OpenAI(api_key=CEREBRAS_API_KEY, base_url="https://api.cerebras.ai/v1")
+# client = OpenAI(api_key=CEREBRAS_API_KEY, base_url="https://api.cerebras.ai/v1")
 # client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 def ask_model(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
     # return ask_anthropic(prompt, temperature, max_tokens)
     # return ask_chat(prompt, max_tokens)
-    return ask_cerebras(prompt, temperature, max_tokens)
+    # return ask_cerebras(prompt, temperature, max_tokens)
     # return ask_deep(prompt, max_tokens)
+    return ask_gemini(prompt, temperature, max_tokens)
 
 # def ask_anthropic(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
 #     response = client.messages.create(
@@ -72,18 +79,18 @@ def ask_model(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> 
 
 #     return response.output_text.strip() if response.output_text else ""
 
-def ask_cerebras(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
-    response = client.chat.completions.create(
-        model="gpt-oss",
-        temperature=temperature,
-        max_tokens=max_tokens,
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-    )
+# def ask_cerebras(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
+#     response = client.chat.completions.create(
+#         model="gpt-oss",
+#         temperature=temperature,
+#         max_tokens=max_tokens,
+#         messages=[
+#             {"role": "user", "content": prompt}
+#         ],
+#     )
 
-    content = response.choices[0].message.content
-    return content.strip() if content else ""
+#     content = response.choices[0].message.content
+#     return content.strip() if content else ""
 
 # def ask_deep(prompt: str, max_tokens: int = 1000) -> str:
 #     response = client.chat.completions.create(
@@ -95,6 +102,19 @@ def ask_cerebras(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) 
 #     )
 
 #     return response.choices[0].message.content.strip()
+
+def ask_gemini(prompt: str, temperature: float = 0.4, max_tokens: int = 1000) -> str:
+    config = types.GenerateContentConfig(
+        temperature=temperature,
+        max_output_tokens=max_tokens
+    )
+    response = client.models.generate_content(
+        model='gemini-3.6-flash',
+        config=config,
+        contents=prompt
+    )
+
+    return response.text.strip() if response else ""
 
 def compact_email_for_summary(email: dict) -> str:
     return (
@@ -407,6 +427,110 @@ def index_inbox():
     except Exception as exc:
         return json_error(f"Indexing failed: {str(exc)}", 500)
 
+@app.post("/qna")
+def qna():
+    data = request.get_json(silent=True)
+    if not data:
+        return json_error("Request body must be valid JSON.", 400)
+
+    question    = data.get("question")
+    new_session = data.get("new_session", True)
+    session_id  = data.get("session_id")
+    email_text  = data.get("content")
+
+    if not isinstance(question, str) or not question.strip():
+        return json_error("'question' is required and must be a non-empty string.", 400)
+    if not isinstance(new_session, bool):
+        return json_error("'new_session' must be true or false.", 400)
+    if not isinstance(session_id, str) or not session_id.strip():
+        return json_error("'session_id' is required and must be a non-empty string.", 400)
+
+    session_id = session_id.strip()
+
+    if email_text is not None and not isinstance(email_text, str):
+        return json_error("'content' must be a string when provided.", 400)
+
+    try:
+        if new_session:
+            if not isinstance(email_text, str) or not email_text.strip():
+                return json_error(
+                    "'content' is required and must be a non-empty string when starting a new session.",
+                    400,
+                )
+            sessions[session_id] = {"email_text": email_text.strip(), "history": []}
+
+        if session_id not in sessions:
+            return json_error(
+                "Session not found. Start a new session with 'new_session': true and include 'content'.",
+                404,
+            )
+
+        session = sessions[session_id]
+        prompt  = build_qa_prompt(
+            email_text=session["email_text"],
+            question=question.strip(),
+            history=session["history"],
+        )
+
+        answer = ask_model(prompt)
+
+        if not answer:
+            return json_error("Model returned an empty response.", 502)
+
+        session["history"].append({"question": question.strip(), "answer": answer})
+
+        return jsonify({
+            "session_id":    session_id,
+            "message":       answer,
+            "history_count": len(session["history"]),
+        })
+    except Exception as exc:
+        return json_error(f"Gemini request failed: {str(exc)}", 500)
+
+@app.post("/rag-qna")
+def rag_qna():
+    """
+    RAG Q&A — retrieves relevant chunks from the indexed mailbox,
+    then answers using only those chunks.
+    Requires /index-inbox to have been called first.
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return json_error("Request body must be valid JSON.", 400)
+ 
+    question   = data.get("question")
+    session_id = data.get("session_id", "rag_default")
+ 
+    if not isinstance(question, str) or not question.strip():
+        return json_error("'question' is required.", 400)
+ 
+    if pipeline.chunk_count == 0:
+        return json_error("Inbox not indexed yet. Call POST /index-inbox first.", 400)
+ 
+    try:
+        context = pipeline.query_as_context(question.strip())
+ 
+        if session_id not in sessions:
+            sessions[session_id] = {"email_text": "", "history": []}
+ 
+        history = sessions[session_id]["history"]
+        prompt  = build_rag_qa_prompt(context, question.strip(), history)
+ 
+        answer = ask_model(prompt)
+
+        if not answer:
+            return json_error("Model returned an empty response.", 502)
+ 
+        sessions[session_id]["history"].append({"question": question.strip(), "answer": answer})
+ 
+        return jsonify({
+            "session_id":    session_id,
+            "message":       answer,
+            "history_count": len(sessions[session_id]["history"]),
+            "chunks_used":   context.count("---") + 1,
+        })
+    except Exception as exc:
+        return json_error(f"RAG Q&A failed: {str(exc)}", 500)
 
 @app.post("/search")
 def search():

@@ -25,6 +25,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "SEARCH":
       handleSearch(message, sendResponse);
       break;
+    case "QA":
+      handleQA(message, sendResponse);
+      break;
     case "COMPOSE":
       handleCompose(message, sendResponse);
       break;
@@ -100,6 +103,33 @@ async function handleSearch({ query, filter }, sendResponse) {
       filter: data.filter,
       count: data.count,
     });
+
+  } catch (err) {
+    sendResponse({ ok: false, error: err.message });
+  }
+}
+
+async function handleQA({ question, sessionId, isNewSession, emailContent }, sendResponse) {
+  try {
+    const body = {
+      question,
+      session_id: sessionId,
+      new_session: isNewSession,
+    };
+    if (isNewSession) {
+      // Use content sent by popup; fall back to scraping the tab if missing
+      body.content = emailContent || await getEmailContentFromTab();
+    }
+
+    const res = await fetch(`${API_BASE}/qna`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+    if (!res.ok) return sendResponse({ ok: false, error: data.error });
+    sendResponse({ ok: true, answer: data.message, sessionId: data.session_id });
 
   } catch (err) {
     sendResponse({ ok: false, error: err.message });
