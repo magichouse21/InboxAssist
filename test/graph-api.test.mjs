@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildSearchPath } from "../js/graph-api.js";
+import { buildSearchPath, buildSendMailRequest } from "../js/graph-api.js";
 
 test("subject search escapes OData quotes and preserves the filter", () => {
   const path = buildSearchPath("Bob's update", "subject");
@@ -26,4 +26,15 @@ test("all search uses Graph search syntax", () => {
   const path = buildSearchPath("project update", "all");
   const params = new URL(`https://graph.test${path}`).searchParams;
   assert.equal(params.get("$search"), '"project update"');
+});
+
+test("send-mail request uses Graph message format", () => {
+  assert.deepEqual(buildSendMailRequest(" Subject ", " Body ", " recipient@example.com "), {
+    message: {
+      subject: "Subject",
+      body: { contentType: "Text", content: "Body" },
+      toRecipients: [{ emailAddress: { address: "recipient@example.com" } }],
+    },
+    saveToSentItems: true,
+  });
 });

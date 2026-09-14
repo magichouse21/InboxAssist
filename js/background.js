@@ -7,7 +7,7 @@ import {
   signIn,
   signOut,
 } from "./microsoft-auth.js";
-import { getInboxPreview, searchMessages } from "./graph-api.js";
+import { getInboxPreview, searchMessages, sendMail } from "./graph-api.js";
 import {
   getGeminiStatus,
   removeGeminiKey,
@@ -30,8 +30,6 @@ const qaSessions = new Map();
  *
  * Responses are forwarded back to the popup via sendResponse().
  */
-
-const API_BASE = "http://localhost:5000";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const { type } = message;
@@ -210,18 +208,11 @@ async function handleCompose({ prompt, tone, to, sender_name }, sendResponse) {
 
 async function handleSend({ subject, body, recipient }, sendResponse) {
   try {
-    const res = await fetch(`${API_BASE}/send`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject, body, recipient }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) return sendResponse({ ok: false, error: data.error });
-    sendResponse({ ok: true, message: data.message });
+    const result = await sendMail(subject, body, recipient);
+    sendResponse({ ok: true, ...result });
 
   } catch (err) {
-    sendResponse({ ok: false, error: err.message });
+    sendResponse({ ok: false, error: err.message, code: err.code || "GRAPH_ERROR" });
   }
 }
 

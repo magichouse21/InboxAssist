@@ -277,7 +277,7 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
 
     chrome.runtime.sendMessage(
       { type: 'SEND', subject, body, recipient },
-      ({ ok, error }) => {
+      ({ ok, error, code }) => {
         btn.textContent = 'Send Email';
         btn.disabled = false;
         if (ok) {
@@ -288,6 +288,7 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
           btn.hidden = true;
           alert('Email sent successfully!');
         } else {
+          if (code === 'AUTH_REQUIRED') renderConnection({ status: 'reauthentication_required' });
           alert(`Send failed: ${error}`);
         }
       }

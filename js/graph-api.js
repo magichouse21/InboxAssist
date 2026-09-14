@@ -70,6 +70,29 @@ export async function searchMessages(query, filter = "all") {
   return (data.value || []).map(serializeSearchMessage);
 }
 
+export function buildSendMailRequest(subject, body, recipient) {
+  return {
+    message: {
+      subject: subject.trim(),
+      body: { contentType: "Text", content: body.trim() },
+      toRecipients: [{ emailAddress: { address: recipient.trim() } }],
+    },
+    saveToSentItems: true,
+  };
+}
+
+export async function sendMail(subject, body, recipient) {
+  if (!subject?.trim() || !body?.trim() || !recipient?.trim()) {
+    throw new Error("Subject, body, and recipient are required.");
+  }
+  await graphRequest("/me/sendMail", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(buildSendMailRequest(subject, body, recipient)),
+  });
+  return { message: "Email sent successfully." };
+}
+
 export async function getInboxPreview() {
   const params = new URLSearchParams({
     "$select": "from,subject,receivedDateTime,bodyPreview,webLink",
