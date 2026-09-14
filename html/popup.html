@@ -34,6 +34,14 @@
     <!-- ── Views ── -->
     <main class="app-body">
 
+      <section class="connection-panel" id="connection-panel" aria-live="polite">
+        <h2 class="view-title">Connect InboxAssist</h2>
+        <p id="connection-message">Sign in with your personal Microsoft account to use InboxAssist.</p>
+        <button class="btn-primary" id="btn-auth">Sign in with Microsoft</button>
+        <button class="btn-primary" id="btn-inbox-preview" hidden>Test inbox access</button>
+        <div id="inbox-preview" hidden></div>
+      </section>
+
       <!-- Summarize View -->
       <div class="view active" id="view-summarize">
         <div class="view-inner">

@@ -711,3 +711,22 @@ body {
 .btn-send-email:hover {
   background: #047857;
 }
+
+.connection-panel {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  padding: 22px 16px;
+  background: var(--bg-base);
+  overflow-y: auto;
+}
+
+.connection-panel[hidden] {
+  display: none;
+}
+
+.connection-panel p {
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 10px 0 16px;
+}

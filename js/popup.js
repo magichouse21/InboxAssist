@@ -2,6 +2,57 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+  // ── Microsoft connection state ────────────────────────────────
+  const connectionPanel = document.getElementById('connection-panel');
+  const connectionMessage = document.getElementById('connection-message');
+  const authButton = document.getElementById('btn-auth');
+  const inboxButton = document.getElementById('btn-inbox-preview');
+  const inboxPreview = document.getElementById('inbox-preview');
+  const statusLabel = document.querySelector('.status-label');
+  const statusDot = document.querySelector('.status-dot');
+
+  const send = (message) => new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
+
+  function renderConnection(result) {
+    const connected = result?.status === 'connected';
+    const expired = result?.status === 'reauthentication_required';
+    statusLabel.textContent = connected ? 'Connected' : expired ? 'Reconnect' : 'Not connected';
+    statusDot.style.background = connected ? '#34d399' : '#f59e0b';
+    connectionPanel.hidden = connected;
+    authButton.textContent = expired ? 'Reconnect Microsoft' : 'Sign in with Microsoft';
+    connectionMessage.textContent = expired
+      ? 'Your Microsoft sign-in expired. Reconnect to continue.'
+      : result?.error || 'Sign in with your personal Microsoft account to use InboxAssist.';
+    inboxButton.hidden = !connected;
+    return connected;
+  }
+
+  send({ type: 'AUTH_STATUS' }).then(renderConnection);
+
+  authButton?.addEventListener('click', async () => {
+    authButton.disabled = true;
+    authButton.textContent = 'Signing in…';
+    const result = await send({ type: 'AUTH_SIGN_IN' });
+    renderConnection(result);
+    authButton.disabled = false;
+  });
+
+  inboxButton?.addEventListener('click', async () => {
+    inboxButton.disabled = true;
+    inboxButton.textContent = 'Checking inbox…';
+    const result = await send({ type: 'INBOX_PREVIEW' });
+    inboxButton.disabled = false;
+    inboxButton.textContent = 'Test inbox access';
+    if (!result?.ok) {
+      connectionMessage.textContent = result?.error || 'Inbox access failed.';
+      if (result?.code === 'AUTH_REQUIRED') renderConnection({ status: 'reauthentication_required' });
+      return;
+    }
+    inboxPreview.hidden = false;
+    inboxPreview.innerHTML = `<p>Connected as ${escapeHtml(result.profile.email || result.profile.displayName)}</p>` +
+      result.messages.map((message) => `<div class="card"><strong>${escapeHtml(message.subject)}</strong><br><span>${escapeHtml(message.from)}</span></div>`).join('');
+  });
+
   // ── Tab navigation ──────────────────────────────────────────────
   const tabItems = document.querySelectorAll('.tab-item');
   const views    = document.querySelectorAll('.view');

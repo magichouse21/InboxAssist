@@ -1,5 +1,14 @@
 /* ── background.js — Service Worker ── */
 
+import {
+  getAuthStatus,
+  getCurrentUser,
+  redirectUri,
+  signIn,
+  signOut,
+} from "./microsoft-auth.js";
+import { getInboxPreview } from "./graph-api.js";
+
 /**
  * Central message hub between popup.js and content.js.
  *
@@ -19,6 +28,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const { type } = message;
 
   switch (type) {
+    case "AUTH_STATUS":
+      handleAuthStatus(sendResponse);
+      break;
+    case "AUTH_SIGN_IN":
+      handleAuthSignIn(sendResponse);
+      break;
+    case "AUTH_SIGN_OUT":
+      handleAuthSignOut(sendResponse);
+      break;
+    case "GET_REDIRECT_URI":
+      sendResponse({ ok: true, redirectUri: redirectUri() });
+      break;
+    case "INBOX_PREVIEW":
+      handleInboxPreview(sendResponse);
+      break;
     case "SUMMARIZE":
       handleSummarize(message, sendResponse);
       break;
@@ -47,6 +71,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Return true to keep the message channel open for async responses
   return true;
 });
+
+async function handleAuthStatus(sendResponse) {
+  try {
+    sendResponse({ ok: true, ...(await getAuthStatus()) });
+  } catch (error) {
+    sendResponse({ ok: false, status: "error", error: error.message });
+  }
+}
+
+async function handleAuthSignIn(sendResponse) {
+  try {
+    const profile = await signIn();
+    sendResponse({ ok: true, status: "connected", profile });
+  } catch (error) {
+    sendResponse({ ok: false, status: "signed_out", error: error.message });
+  }
+}
+
+async function handleAuthSignOut(sendResponse) {
+  try {
+    await signOut();
+    sendResponse({ ok: true, status: "signed_out" });
+  } catch (error) {
+    sendResponse({ ok: false, error: error.message });
+  }
+}
+
+async function handleInboxPreview(sendResponse) {
+  try {
+    const profile = await getCurrentUser();
+    const messages = await getInboxPreview();
+    sendResponse({ ok: true, profile, messages, count: messages.length });
+  } catch (error) {
+    sendResponse({ ok: false, error: error.message, code: error.code || "GRAPH_ERROR" });
+  }
+}
 
 // ── Handlers ──────────────────────────────────────────────────────
 

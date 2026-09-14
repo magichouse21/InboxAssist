@@ -1,7 +1,7 @@
 {
     "name": "Inbox Assist",
     "description": "An Outlook extension to help you go through your emails faster.",
-    "version": "0.1",
+    "version": "0.1.1",
     "manifest_version": 3,
     "permissions": [
         "activeTab",

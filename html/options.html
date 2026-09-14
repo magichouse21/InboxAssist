@@ -18,8 +18,18 @@
       <div class="view-inner">
         <h2 class="view-title">Configuration</h2>
         <p class="view-subtitle">Prototype settings</p>
-        <p>Microsoft login and Gemini configuration will be added in the next slice.</p>
-        <p id="status" role="status">Settings are ready.</p>
+        <div class="card">
+          <div class="card-label">Microsoft OAuth</div>
+          <p id="microsoft-status" role="status">Checking connection…</p>
+          <button class="btn-primary" id="btn-options-auth">Sign in with Microsoft</button>
+          <button class="btn-primary" id="btn-options-signout" hidden>Disconnect Microsoft</button>
+        </div>
+        <div class="card">
+          <div class="card-label">Redirect URI</div>
+          <p id="redirect-uri">Loading…</p>
+          <p class="view-subtitle">Register this exact URI in Microsoft Entra for the extension.</p>
+        </div>
+        <p id="status" role="status">Gemini settings will be added in the next slice.</p>
       </div>
     </section>
   </main>
