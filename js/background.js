@@ -15,6 +15,12 @@ import {
   testGeminiConnection,
 } from "./gemini-api.js";
 import { answerEmail, composeEmail, summarizeInbox } from "./ai-features.js";
+import {
+  answerIndexedQuestion,
+  clearChunks,
+  getIndexStatus,
+  indexInbox,
+} from "./embedding-index.js";
 
 const qaSessions = new Map();
 
@@ -63,6 +69,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "GEMINI_REMOVE_KEY":
       removeGeminiKey().then(() => sendResponse({ ok: true, configured: false }))
         .catch((error) => sendResponse({ ok: false, error: error.message }));
+      break;
+    case "INDEX_INBOX":
+      indexInbox(message.limit || 50).then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message, code: error.code || "INDEX_ERROR" }));
+      break;
+    case "INDEX_STATUS":
+      getIndexStatus().then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+      break;
+    case "INDEX_CLEAR":
+      clearChunks().then(() => sendResponse({ ok: true, chunks: 0 }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+      break;
+    case "RAG_QA":
+      handleRagQa(message, sendResponse);
       break;
     case "SUMMARIZE":
       handleSummarize(message, sendResponse);
@@ -144,6 +165,18 @@ async function handleGeminiTestKey(apiKey, sendResponse) {
     sendResponse({ ok: true, message: "Gemini connection succeeded." });
   } catch (error) {
     sendResponse({ ok: false, error: error.message });
+  }
+}
+
+async function handleRagQa({ question, sessionId }, sendResponse) {
+  try {
+    const session = qaSessions.get(sessionId) || { history: [] };
+    const answer = await answerIndexedQuestion(question, session.history);
+    session.history.push({ question, answer });
+    qaSessions.set(sessionId, session);
+    sendResponse({ ok: true, answer, sessionId });
+  } catch (error) {
+    sendResponse({ ok: false, error: error.message, code: error.code || "AI_ERROR" });
   }
 }
 

@@ -9,6 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const geminiSave = document.getElementById("btn-gemini-save");
   const geminiTest = document.getElementById("btn-gemini-test");
   const geminiRemove = document.getElementById("btn-gemini-remove");
+  const indexButton = document.getElementById("btn-index-inbox");
+  const indexClear = document.getElementById("btn-index-clear");
+  const indexStatus = document.getElementById("index-status");
 
   const send = (message) => new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
 
@@ -33,6 +36,9 @@ document.addEventListener("DOMContentLoaded", () => {
   send({ type: "AUTH_STATUS" }).then(renderAuth);
   send({ type: "GEMINI_STATUS" }).then((result) => {
     geminiStatus.textContent = result?.configured ? "Gemini key is configured." : "Gemini key is not configured.";
+  });
+  send({ type: "INDEX_STATUS" }).then((result) => {
+    indexStatus.textContent = result?.ok ? `${result.chunks} indexed chunks.` : result?.error || "Unable to read index status.";
   });
 
   authButton?.addEventListener("click", async () => {
@@ -65,6 +71,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const result = await send({ type: "GEMINI_REMOVE_KEY" });
     geminiStatus.textContent = result?.ok ? "Gemini key removed." : result?.error || "Unable to remove Gemini key.";
     geminiKey.value = "";
+  });
+
+  indexButton?.addEventListener("click", async () => {
+    indexButton.disabled = true;
+    indexStatus.textContent = "Indexing inbox…";
+    const result = await send({ type: "INDEX_INBOX", limit: 50 });
+    indexStatus.textContent = result?.ok
+      ? `${result.chunksIndexed} chunks indexed from ${result.emailsProcessed} emails.`
+      : result?.error || "Unable to index inbox.";
+    indexButton.disabled = false;
+  });
+
+  indexClear?.addEventListener("click", async () => {
+    const result = await send({ type: "INDEX_CLEAR" });
+    indexStatus.textContent = result?.ok ? "Index cleared." : result?.error || "Unable to clear index.";
   });
 
   if (status) status.textContent = "Gemini settings will be added in the next slice.";

@@ -34,6 +34,27 @@ export async function generateContent(prompt, options = {}) {
   return text;
 }
 
+export async function embedTexts(texts, taskType = "RETRIEVAL_DOCUMENT") {
+  const apiKey = await getGeminiApiKey();
+  if (!apiKey) throw new Error("Gemini API key is not configured.");
+  if (!texts.length) return [];
+
+  const response = await fetch(`${GEMINI_API_BASE}/models/gemini-embedding-001:batchEmbedContents?key=${encodeURIComponent(apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      requests: texts.map((text) => ({
+        model: "models/gemini-embedding-001",
+        content: { parts: [{ text }] },
+        taskType,
+      })),
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(extractError(data));
+  return (data.embeddings || []).map((embedding) => embedding.values || []);
+}
+
 export async function testGeminiConnection(apiKey) {
   await generateContent("Reply with OK only.", { apiKey });
   return true;

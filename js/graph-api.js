@@ -135,3 +135,15 @@ export async function getUnreadInbox() {
   });
   return (data.value || []).map(serializeInboxMessage);
 }
+
+export async function getInboxForIndex(limit = 50) {
+  const params = new URLSearchParams({
+    "$select": "id,from,subject,receivedDateTime,bodyPreview,body,webLink",
+    "$top": String(Math.min(Math.max(limit, 1), 100)),
+    "$orderby": "receivedDateTime DESC",
+  });
+  const data = await graphRequest(`/me/mailFolders/inbox/messages?${params}`, {
+    headers: { Prefer: 'outlook.body-content-type="text"' },
+  });
+  return (data.value || []).map(serializeInboxMessage);
+}

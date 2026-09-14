@@ -31,6 +31,17 @@ export function buildQaPrompt(emailText, question, history = []) {
   ].filter(Boolean).join("\n\n");
 }
 
+export function buildRagQaPrompt(context, question, history = []) {
+  const recent = history.slice(-4).map((item) => `Q: ${item.question}\nA: ${item.answer}`).join("\n\n");
+  return [
+    "You are an email assistant. Answer using only the email excerpts below.",
+    "If the answer is not in the excerpts, say so clearly. Cite the email subject when possible.",
+    `Relevant email excerpts:\n${context}`,
+    recent ? `Previous conversation:\n${recent}` : "",
+    `Question:\n${question}`,
+  ].filter(Boolean).join("\n\n");
+}
+
 export function buildComposePrompt(description, tone, recipient, senderName) {
   return [
     "You write professional emails.",
