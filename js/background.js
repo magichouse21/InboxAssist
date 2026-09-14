@@ -8,6 +8,12 @@ import {
   signOut,
 } from "./microsoft-auth.js";
 import { getInboxPreview, searchMessages } from "./graph-api.js";
+import {
+  getGeminiStatus,
+  removeGeminiKey,
+  saveGeminiKey,
+  testGeminiConnection,
+} from "./gemini-api.js";
 
 /**
  * Central message hub between popup.js and content.js.
@@ -42,6 +48,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
     case "INBOX_PREVIEW":
       handleInboxPreview(sendResponse);
+      break;
+    case "GEMINI_STATUS":
+      getGeminiStatus().then((status) => sendResponse({ ok: true, ...status }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+      break;
+    case "GEMINI_SAVE_KEY":
+      handleGeminiSaveKey(message.apiKey, sendResponse);
+      break;
+    case "GEMINI_TEST_KEY":
+      handleGeminiTestKey(message.apiKey, sendResponse);
+      break;
+    case "GEMINI_REMOVE_KEY":
+      removeGeminiKey().then(() => sendResponse({ ok: true, configured: false }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
       break;
     case "SUMMARIZE":
       handleSummarize(message, sendResponse);
@@ -105,6 +125,24 @@ async function handleInboxPreview(sendResponse) {
     sendResponse({ ok: true, profile, messages, count: messages.length });
   } catch (error) {
     sendResponse({ ok: false, error: error.message, code: error.code || "GRAPH_ERROR" });
+  }
+}
+
+async function handleGeminiSaveKey(apiKey, sendResponse) {
+  try {
+    await saveGeminiKey(apiKey || "");
+    sendResponse({ ok: true, configured: true });
+  } catch (error) {
+    sendResponse({ ok: false, error: error.message });
+  }
+}
+
+async function handleGeminiTestKey(apiKey, sendResponse) {
+  try {
+    await testGeminiConnection(apiKey || "");
+    sendResponse({ ok: true, message: "Gemini connection succeeded." });
+  } catch (error) {
+    sendResponse({ ok: false, error: error.message });
   }
 }
 

@@ -25,3 +25,16 @@ export async function setStoredProfile(profile) {
 export async function clearStoredMicrosoftAuth() {
   await chrome.storage.local.remove([KEYS.auth, KEYS.profile]);
 }
+
+export async function getGeminiApiKey() {
+  const values = await chrome.storage.local.get([KEYS.geminiKey]);
+  return values[KEYS.geminiKey] || "";
+}
+
+export async function setGeminiApiKey(apiKey) {
+  await chrome.storage.local.set({ [KEYS.geminiKey]: apiKey });
+}
+
+export async function clearGeminiApiKey() {
+  await chrome.storage.local.remove([KEYS.geminiKey]);
+}

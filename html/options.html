@@ -29,7 +29,19 @@
           <p id="redirect-uri">Loading…</p>
           <p class="view-subtitle">Register this exact URI in Microsoft Entra for the extension.</p>
         </div>
-        <p id="status" role="status">Gemini settings will be added in the next slice.</p>
+        <div class="card">
+          <div class="card-label">Gemini API</div>
+          <p class="view-subtitle">The prototype stores your key locally in Chrome extension storage.</p>
+          <label class="field-label" for="gemini-key">API key</label>
+          <input class="field-input" id="gemini-key" type="password" autocomplete="off" placeholder="Paste your Gemini API key" />
+          <div class="tone-row">
+            <button class="btn-primary" id="btn-gemini-save">Save key</button>
+            <button class="btn-primary" id="btn-gemini-test">Test connection</button>
+            <button class="btn-primary" id="btn-gemini-remove">Remove key</button>
+          </div>
+          <p id="gemini-status" role="status">Checking Gemini configuration…</p>
+        </div>
+        <p id="status" role="status">Settings are ready.</p>
       </div>
     </section>
   </main>
