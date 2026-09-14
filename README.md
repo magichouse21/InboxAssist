@@ -1,30 +1,27 @@
 ## InboxAssist
 
-How to run InboxAssist:
+How to run InboxAssist locally:
 
-- install all necessary packages:
-    pip install -r requirements.txt
+- install Node.js dependencies:
+    npm install
 
-- create a .env file containing gemini api key and model
+- build the extension:
+    npm run build
 
-- run the server:
-    python main.py
+- open `chrome://extensions` in Chrome
+- enable **Developer mode**
+- click **Load unpacked** and select the `dist/` folder
 
-- run on another terminal:
-    Invoke-WebRequest -Uri http://localhost:5000/index-inbox -Method POST -UseBasicParsing
-
-- switch back to Flask terminal and open https://login.microsoft.com/device to authenticate with given code
-
-- at the moment, only @outlook.com email addresses are able to be used
-
-- load the chrome extension:
-    go to chrome://extensions
-    enable 'Developer mode'
-    click 'Load unpacked'
-    select our project folder
-    Inbox Assist 0.1 should appear in extension box
+- open the extension Options page
+- copy the displayed Microsoft OAuth redirect URI into the Microsoft Entra app registration
+- sign in with a personal Microsoft account
+- enter your Gemini API key, click **Save key**, and use **Test connection**
+- run `npm test` to execute the automated checks
 
 How to use InboxAssist:
 - go to outlook.office.com
 - click on an email
-- click on the extension icon and select your service
+- click on the extension icon and use Summarize, Search, Q&A, or Compose
+
+The previous Python/Flask implementation is preserved under `legacy-python/`
+for migration reference and is not required to run the extension.
