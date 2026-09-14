@@ -19,3 +19,8 @@ test("build emits every extension entry point and static asset", async () => {
     await assert.doesNotReject(access(file), `missing build output: ${file}`);
   }
 });
+
+test("manifest declares the source service worker as a module", async () => {
+  const manifest = JSON.parse(await (await import("node:fs/promises")).readFile("manifest.json", "utf8"));
+  assert.equal(manifest.background.type, "module");
+});
