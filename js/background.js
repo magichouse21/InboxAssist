@@ -7,7 +7,7 @@ import {
   signIn,
   signOut,
 } from "./microsoft-auth.js";
-import { getInboxPreview } from "./graph-api.js";
+import { getInboxPreview, searchMessages } from "./graph-api.js";
 
 /**
  * Central message hub between popup.js and content.js.
@@ -125,7 +125,7 @@ async function handleSummarize({ options }, sendResponse) {
     sendResponse({ ok: true, result: data.message, emailsUsed: data.emails_used });
 
   } catch (err) {
-    sendResponse({ ok: false, error: err.message });
+    sendResponse({ ok: false, error: err.message, code: err.code || "GRAPH_ERROR" });
   }
 }
 
@@ -137,35 +137,17 @@ async function handleSearch({ query, filter }, sendResponse) {
 
     const selectedFilter = filter || "all";
 
-    console.log("BACKGROUND SEARCH:", {
-      query: query.trim(),
-      filter: selectedFilter,
-    });
-
-    const res = await fetch(`${API_BASE}/search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: query.trim(),
-        filter: selectedFilter,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      return sendResponse({ ok: false, error: data.error });
-    }
+    const results = await searchMessages(query.trim(), selectedFilter);
 
     sendResponse({
       ok: true,
-      results: data.results,
-      filter: data.filter,
-      count: data.count,
+      results,
+      filter: selectedFilter,
+      count: results.length,
     });
 
   } catch (err) {
-    sendResponse({ ok: false, error: err.message });
+    sendResponse({ ok: false, error: err.message, code: err.code || "GRAPH_ERROR" });
   }
 }
 

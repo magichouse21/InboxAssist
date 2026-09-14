@@ -19,6 +19,57 @@ async function graphRequest(path, options = {}) {
   return data;
 }
 
+function escapeODataString(value) {
+  return value.replace(/'/g, "''");
+}
+
+export function buildSearchPath(query, filter = "all") {
+  const encoded = query.trim();
+  const params = new URLSearchParams({
+    "$select": "from,subject,receivedDateTime,bodyPreview,webLink",
+    "$top": "25",
+  });
+
+  if (filter === "subject") {
+    params.set("$filter", `contains(subject, '${escapeODataString(encoded)}')`);
+    params.set("$orderby", "receivedDateTime DESC");
+  } else if (filter === "from") {
+    params.set("$filter", `from/emailAddress/address eq '${escapeODataString(encoded)}'`);
+    params.set("$orderby", "receivedDateTime DESC");
+  } else if (filter === "date") {
+    const date = new Date(encoded);
+    if (Number.isNaN(date.getTime())) throw new Error("Enter a valid date, such as 2026-09-14.");
+    const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    params.set("$filter", `receivedDateTime ge ${start.toISOString()} and receivedDateTime lt ${end.toISOString()}`);
+    params.set("$orderby", "receivedDateTime DESC");
+  } else {
+    params.set("$search", `\"${encoded.replace(/\"/g, '\\\"')}\"`);
+  }
+
+  return `/me/messages?${params}`;
+}
+
+function serializeSearchMessage(message) {
+  return {
+    id: message.id,
+    subject: message.subject || "(no subject)",
+    from: message.from?.emailAddress?.address || "Unknown sender",
+    from_name: message.from?.emailAddress?.name || message.from?.emailAddress?.address || "Unknown sender",
+    received: message.receivedDateTime || null,
+    body_preview: message.bodyPreview || "",
+    web_link: message.webLink || null,
+  };
+}
+
+export async function searchMessages(query, filter = "all") {
+  const data = await graphRequest(buildSearchPath(query, filter), {
+    headers: { ConsistencyLevel: "eventual" },
+  });
+  return (data.value || []).map(serializeSearchMessage);
+}
+
 export async function getInboxPreview() {
   const params = new URLSearchParams({
     "$select": "from,subject,receivedDateTime,bodyPreview,webLink",
