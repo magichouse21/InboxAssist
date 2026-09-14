@@ -86,3 +86,29 @@ export async function getInboxPreview() {
     webLink: message.webLink || null,
   }));
 }
+
+function serializeInboxMessage(message) {
+  return {
+    id: message.id,
+    subject: message.subject || "(no subject)",
+    from: message.from?.emailAddress?.address || "Unknown sender",
+    from_name: message.from?.emailAddress?.name || message.from?.emailAddress?.address || "Unknown sender",
+    received: message.receivedDateTime || null,
+    body_preview: message.bodyPreview || "",
+    body: message.body?.content || message.bodyPreview || "",
+    web_link: message.webLink || null,
+  };
+}
+
+export async function getUnreadInbox() {
+  const params = new URLSearchParams({
+    "$select": "from,subject,receivedDateTime,bodyPreview,body,webLink",
+    "$filter": "isRead eq false",
+    "$top": "25",
+    "$orderby": "receivedDateTime DESC",
+  });
+  const data = await graphRequest(`/me/mailFolders/inbox/messages?${params}`, {
+    headers: { Prefer: 'outlook.body-content-type="text"' },
+  });
+  return (data.value || []).map(serializeInboxMessage);
+}

@@ -14,6 +14,9 @@ import {
   saveGeminiKey,
   testGeminiConnection,
 } from "./gemini-api.js";
+import { answerEmail, composeEmail, summarizeInbox } from "./ai-features.js";
+
+const qaSessions = new Map();
 
 /**
  * Central message hub between popup.js and content.js.
@@ -150,20 +153,11 @@ async function handleGeminiTestKey(apiKey, sendResponse) {
 
 async function handleSummarize({ options }, sendResponse) {
   try {
-    const style = 'brief and professional summary of the latest 25 inbox emails';
-
-    const res = await fetch(`${API_BASE}/summarize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ style }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) return sendResponse({ ok: false, error: data.error });
-    sendResponse({ ok: true, result: data.message, emailsUsed: data.emails_used });
+    const result = await summarizeInbox(options?.style || 'brief and professional summary of the latest 25 inbox emails');
+    sendResponse({ ok: true, result: result.message, emailsUsed: result.emailsUsed });
 
   } catch (err) {
-    sendResponse({ ok: false, error: err.message, code: err.code || "GRAPH_ERROR" });
+    sendResponse({ ok: false, error: err.message, code: err.code || "AI_ERROR" });
   }
 }
 
@@ -191,50 +185,26 @@ async function handleSearch({ query, filter }, sendResponse) {
 
 async function handleQA({ question, sessionId, isNewSession, emailContent }, sendResponse) {
   try {
-    const body = {
-      question,
-      session_id: sessionId,
-      new_session: isNewSession,
-    };
-    if (isNewSession) {
-      // Use content sent by popup; fall back to scraping the tab if missing
-      body.content = emailContent || await getEmailContentFromTab();
-    }
-
-    const res = await fetch(`${API_BASE}/qna`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    const data = await res.json();
-    if (!res.ok) return sendResponse({ ok: false, error: data.error });
-    sendResponse({ ok: true, answer: data.message, sessionId: data.session_id });
+    const session = qaSessions.get(sessionId) || { emailContent: emailContent || "", history: [] };
+    if (emailContent) session.emailContent = emailContent;
+    if (!session.emailContent) throw new Error("No email content is available for Q&A.");
+    const answer = await answerEmail(session.emailContent, question, session.history);
+    session.history.push({ question, answer });
+    qaSessions.set(sessionId, session);
+    sendResponse({ ok: true, answer, sessionId });
 
   } catch (err) {
-    sendResponse({ ok: false, error: err.message });
+    sendResponse({ ok: false, error: err.message, code: err.code || "AI_ERROR" });
   }
 }
 
 async function handleCompose({ prompt, tone, to, sender_name }, sendResponse) {
   try {
-    const res = await fetch(`${API_BASE}/write-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        description: prompt,
-        tone,
-        recipient: to,
-        sender_name,
-      }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) return sendResponse({ ok: false, error: data.error });
-    sendResponse({ ok: true, draft: data }); // { subject, body }
+    const draft = await composeEmail(prompt, tone, to, sender_name);
+    sendResponse({ ok: true, draft });
 
   } catch (err) {
-    sendResponse({ ok: false, error: err.message });
+    sendResponse({ ok: false, error: err.message, code: err.code || "AI_ERROR" });
   }
 }
 

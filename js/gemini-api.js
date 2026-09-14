@@ -1,10 +1,13 @@
 import { GEMINI_API_BASE, GEMINI_MODEL } from "./config.js";
 import { clearGeminiApiKey, getGeminiApiKey, setGeminiApiKey } from "./storage.js";
 
-export function buildGenerateContentRequest(prompt) {
+export function buildGenerateContentRequest(prompt, options = {}) {
   return {
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { maxOutputTokens: 32, temperature: 0 },
+    generationConfig: {
+      maxOutputTokens: options.maxOutputTokens || 1000,
+      temperature: options.temperature ?? 0.4,
+    },
   };
 }
 
@@ -21,7 +24,7 @@ export async function generateContent(prompt, options = {}) {
   const response = await fetch(`${GEMINI_API_BASE}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(buildGenerateContentRequest(prompt)),
+    body: JSON.stringify(buildGenerateContentRequest(prompt, options)),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(extractError(data));

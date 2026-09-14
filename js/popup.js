@@ -98,9 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.runtime.sendMessage(
       { type: 'SUMMARIZE', options: { bullets } },
       ({ ok, result, error }) => {
-        output.innerHTML = ok
-          ? `<p class="summary-text">${result}</p>`
-          : `<p class="summary-text" style="color:red">${error}</p>`;
+        output.replaceChildren();
+        const message = document.createElement('p');
+        message.className = 'summary-text';
+        message.textContent = ok ? result : error;
+        if (!ok) message.style.color = 'red';
+        output.appendChild(message);
       }
     );
   });
@@ -158,6 +161,7 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
 // ── Q&A chat ────────────────────────────────────────────────────
   let qaSessionId = crypto.randomUUID();
   let qaIsNewSession = true;
+  let qaEmailContent = '';
   const qaInput  = document.getElementById('qa-input');
   const qaBtn    = document.getElementById('btn-qa-send');
   const chatWin  = document.getElementById('chat-window');
@@ -165,6 +169,7 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
   document.querySelector('[data-target="view-qa"]')?.addEventListener('click', () => {
     qaSessionId    = crypto.randomUUID();
     qaIsNewSession = true;
+    qaEmailContent = '';
   });
 
   qaBtn?.addEventListener('click', sendQA);
@@ -185,11 +190,11 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
 
     if (qaIsNewSession) {
       chrome.runtime.sendMessage({ type: 'GET_EMAIL_CONTENT' }, (contentResponse) => {
-        const emailContent = contentResponse?.content || '';
-        dispatchQA(text, thinking, emailContent);
+        qaEmailContent = contentResponse?.content || '';
+        dispatchQA(text, thinking, qaEmailContent);
       })
     } else {
-      dispatchQA(text, thinking, null);
+      dispatchQA(text, thinking, qaEmailContent);
     }
     }
 
@@ -200,7 +205,7 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
       sessionId:    qaSessionId,
       isNewSession: qaIsNewSession,
     };
-    if (qaIsNewSession && emailContent) payload.emailContent = emailContent;
+    if (emailContent) payload.emailContent = emailContent;
 
     chrome.runtime.sendMessage(payload, ({ ok, answer, error }) => {
       thinkingBubble.querySelector('.bubble-content').textContent = ok ? answer : `Error: ${error}`;
@@ -217,7 +222,10 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
   function appendBubble(role, text) {
     const bubble = document.createElement('div');
     bubble.className = `chat-bubble ${role}`;
-    bubble.innerHTML = `<div class="bubble-content">${text}</div>`;
+    const content = document.createElement('div');
+    content.className = 'bubble-content';
+    content.textContent = text;
+    bubble.appendChild(content);
     chatWin?.appendChild(bubble);
     chatWin.scrollTop = chatWin.scrollHeight;
     return bubble;
