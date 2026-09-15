@@ -286,6 +286,7 @@ body {
   border-radius: var(--radius-lg);
   min-height: 120px;
   flex: 1;
+  overflow-y: auto;
 }
 
 .output-placeholder {
@@ -630,6 +631,8 @@ body {
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .result-item {

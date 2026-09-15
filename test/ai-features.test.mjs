@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildComposePrompt, buildQaPrompt, parseDraftJson } from "../js/ai-features.js";
+import { buildComposePrompt, buildQaPrompt, buildSummaryPrompt, compactEmail, parseDraftJson } from "../js/ai-features.js";
+import { SUMMARY_MAX_OUTPUT_TOKENS } from "../js/config.js";
+
+test("summary prompt requires complete bullets and uses a bounded email contribution", () => {
+  const email = { from_name: "Sender", subject: "Subject", body: "x".repeat(5000) };
+  const compact = compactEmail(email);
+  assert.ok(compact.length < 4200);
+  assert.match(buildSummaryPrompt(compact), /complete bullet points/);
+  assert.equal(SUMMARY_MAX_OUTPUT_TOKENS, 2048);
+});
 
 test("compose prompt requests strict draft JSON", () => {
   const prompt = buildComposePrompt("Confirm the meeting", "friendly", "a@example.com", "Alex");

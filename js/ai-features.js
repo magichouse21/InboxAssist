@@ -1,12 +1,15 @@
 import { getUnreadInbox } from "./graph-api.js";
 import { generateContent } from "./gemini-api.js";
+import { SUMMARY_MAX_OUTPUT_TOKENS } from "./config.js";
+
+const SUMMARY_EMAIL_CHAR_LIMIT = 4000;
 
 export function compactEmail(email) {
   return [
     `From: ${email.from_name || email.from || "Unknown"}`,
     `Subject: ${email.subject || "(no subject)"}`,
     `Received: ${email.received || "Unknown"}`,
-    `Preview:\n${email.body || email.body_preview || ""}`,
+    `Preview:\n${(email.body || email.body_preview || "").slice(0, SUMMARY_EMAIL_CHAR_LIMIT)}`,
   ].join("\n");
 }
 
@@ -14,7 +17,7 @@ export function buildSummaryPrompt(emailText, style = "brief and professional") 
   return [
     "You summarize emails.",
     `Summarize the emails below in this style: ${style}.`,
-    "Keep the result clear, practical, and concise.",
+    "Return 5-10 complete bullet points. Finish every bullet and do not stop mid-sentence.",
     "Emails:",
     emailText,
   ].join("\n\n");
@@ -70,7 +73,7 @@ export async function summarizeInbox(style) {
   const emails = await getUnreadInbox();
   if (!emails.length) return { message: "No unread inbox emails found.", emailsUsed: 0 };
   const message = await generateContent(buildSummaryPrompt(emails.map(compactEmail).join("\n\n--- EMAIL ---\n\n"), style), {
-    maxOutputTokens: 1000,
+    maxOutputTokens: SUMMARY_MAX_OUTPUT_TOKENS,
     temperature: 0.4,
   });
   return { message, emailsUsed: emails.length };
