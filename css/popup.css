@@ -662,6 +662,13 @@ body {
   color: var(--text-primary);
 }
 
+.result-reason {
+  margin: 5px 0 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
 .result-date {
   font-size: 10px;
   font-family: var(--font-mono);

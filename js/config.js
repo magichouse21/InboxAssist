@@ -13,4 +13,5 @@ export const MICROSOFT_SCOPES = [
 export const GRAPH_API_BASE = "https://graph.microsoft.com/v1.0";
 export const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 export const GEMINI_MODEL = "gemini-3.6-flash";
+export const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash";
 export const SUMMARY_MAX_OUTPUT_TOKENS = 2048;

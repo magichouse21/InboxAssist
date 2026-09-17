@@ -3,7 +3,8 @@ import { AuthenticationRequiredError, getAccessToken } from "./microsoft-auth.js
 
 async function graphRequest(path, options = {}) {
   const token = await getAccessToken();
-  const response = await fetch(`${GRAPH_API_BASE}${path}`, {
+  const url = path.startsWith("http") ? path : `${GRAPH_API_BASE}${path}`;
+  const response = await fetch(url, {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -51,6 +52,18 @@ export function buildSearchPath(query, filter = "all") {
   return `/me/messages?${params}`;
 }
 
+export function buildSmartSearchPath(now = new Date()) {
+  const oneYearAgo = new Date(now);
+  oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1);
+  const params = new URLSearchParams({
+    "$select": "id,from,subject,receivedDateTime,bodyPreview,webLink,conversationId",
+    "$filter": `receivedDateTime ge ${oneYearAgo.toISOString()}`,
+    "$orderby": "receivedDateTime DESC",
+    "$top": "100",
+  });
+  return `/me/messages?${params}`;
+}
+
 function serializeSearchMessage(message) {
   return {
     id: message.id,
@@ -60,6 +73,7 @@ function serializeSearchMessage(message) {
     received: message.receivedDateTime || null,
     body_preview: message.bodyPreview || "",
     web_link: message.webLink || null,
+    conversation_id: message.conversationId || null,
   };
 }
 
@@ -68,6 +82,24 @@ export async function searchMessages(query, filter = "all") {
     headers: { ConsistencyLevel: "eventual" },
   });
   return (data.value || []).map(serializeSearchMessage);
+}
+
+export async function getMessagesForSmartSearch(limit = 200, now = new Date()) {
+  const maxMessages = Math.min(Math.max(Number(limit) || 1, 1), 250);
+  const messages = [];
+  let data = await graphRequest(buildSmartSearchPath(now), {
+    headers: { ConsistencyLevel: "eventual" },
+  });
+
+  while (data?.value?.length && messages.length < maxMessages) {
+    messages.push(...data.value);
+    if (messages.length >= maxMessages || !data["@odata.nextLink"]) break;
+    data = await graphRequest(data["@odata.nextLink"], {
+      headers: { ConsistencyLevel: "eventual" },
+    });
+  }
+
+  return messages.slice(0, maxMessages).map(serializeSearchMessage);
 }
 
 export function buildSendMailRequest(subject, body, recipient) {

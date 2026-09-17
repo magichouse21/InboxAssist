@@ -82,16 +82,21 @@
       <div class="view" id="view-search">
         <div class="view-inner">
           <div class="view-title-row">
-            <h2 class="view-title">Search</h2>
-            <span class="view-subtitle">Across all email</span>
+            <h2 class="view-title">Smart Search</h2>
+            <span class="view-subtitle">AI-powered Email Search</span>
           </div>
 
           <div class="search-bar-wrap">
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            <input type="text" class="search-input" id="search-input" placeholder="Find emails about…" />
+            <input type="text" class="search-input" id="search-input" placeholder="Describe the email you want to find…" />
           </div>
 
-          <div class="filter-row">
+          <div class="filter-row search-mode-row" aria-label="Search mode">
+            <button class="filter-chip active" data-search-mode="smart">AI Smart</button>
+            <button class="filter-chip" data-search-mode="keyword">Keyword</button>
+          </div>
+
+          <div class="filter-row" id="keyword-search-filters" hidden>
             <button class="filter-chip active" data-filter="all">All</button>
             <button class="filter-chip" data-filter="from">From</button>
             <button class="filter-chip" data-filter="subject">Subject</button>
@@ -103,12 +108,12 @@
               <div class="placeholder-icon">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
               </div>
-              <p>Type to search your inbox</p>
+            <p>Describe what you remember about an email</p>
             </div>
           </div>
 
           <button class="btn-primary" id="btn-search">
-            Search Inbox
+            Find Best Matches
           </button>
         </div>
       </div>

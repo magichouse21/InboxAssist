@@ -79,6 +79,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  let searchMode = 'smart';
+  const searchButton = document.getElementById('btn-search');
+  const keywordFilters = document.getElementById('keyword-search-filters');
+  document.querySelectorAll('.search-mode-row .filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      searchMode = chip.dataset.searchMode;
+      document.querySelectorAll('.search-mode-row .filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      keywordFilters.hidden = searchMode !== 'keyword';
+      searchButton.textContent = searchMode === 'smart' ? 'Find Best Matches' : 'Search Inbox';
+    });
+  });
+
   // ── Tone chips (single-select) ──────────────────────────────────
   document.querySelectorAll('.tone-chips').forEach(group => {
     group.querySelectorAll('.filter-chip').forEach(chip => {
@@ -113,21 +126,35 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
   const query   = document.getElementById('search-input')?.value.trim();
   const results = document.getElementById('search-results');
 
-  const activeChip = document.querySelector('#view-search .filter-chip.active');
+  const activeChip = document.querySelector('#keyword-search-filters .filter-chip.active');
   const filter = activeChip?.dataset.filter || 'all';
 
   if (!query) return;
   setLoading(results);
+  const searchButton = document.getElementById('btn-search');
+  if (searchButton) searchButton.disabled = true;
 
   chrome.runtime.sendMessage(
     {
-      type: 'SEARCH',
+      type: searchMode === 'smart' ? 'SMART_SEARCH' : 'SEARCH',
       query,
       filter
     },
-    ({ ok, results: emails, error }) => {
+    ({ ok, results: emails, error, code }) => {
+      if (searchButton) searchButton.disabled = false;
       if (!ok) {
-        results.innerHTML = `<p class="summary-text" style="color:red">${error}</p>`;
+        results.replaceChildren();
+        const message = document.createElement('p');
+        message.className = 'summary-text';
+        message.style.color = 'red';
+        message.textContent = error || 'Search failed.';
+        results.appendChild(message);
+        if (code === 'AUTH_REQUIRED') renderConnection({ status: 'reauthentication_required' });
+        return;
+      }
+
+      if (searchMode === 'smart') {
+        renderSmartResults(results, emails || []);
         return;
       }
 
@@ -157,6 +184,57 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
     }
   );
 });
+
+function renderSmartResults(results, matches) {
+  results.replaceChildren();
+  if (!matches.length) {
+    const empty = document.createElement('div');
+    empty.className = 'output-placeholder';
+    const message = document.createElement('p');
+    message.textContent = 'No strong matches found. Try adding a person, topic, or approximate date.';
+    empty.appendChild(message);
+    results.appendChild(empty);
+    return;
+  }
+  matches.forEach((match) => {
+    const item = document.createElement('div');
+    item.className = 'result-item smart-result-item';
+    if (match.web_link) {
+      item.dataset.url = match.web_link;
+      item.style.cursor = 'pointer';
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'result-meta';
+    const sender = document.createElement('span');
+    sender.className = 'result-from';
+    sender.textContent = match.from_name || match.from || 'Unknown';
+    meta.append(sender);
+
+    const subject = document.createElement('div');
+    subject.className = 'result-subject';
+    subject.textContent = match.subject || '(no subject)';
+    const date = document.createElement('div');
+    date.className = 'result-date';
+    date.textContent = match.received ? formatDate(match.received) : '';
+    const reason = document.createElement('div');
+    reason.className = 'result-reason';
+    reason.textContent = match.reason || 'Matches the search description.';
+    const snippet = document.createElement('div');
+    snippet.className = 'result-snippet';
+    snippet.textContent = match.body_preview || '';
+    item.append(meta, subject, date, reason, snippet);
+    results.appendChild(item);
+  });
+
+  results.querySelectorAll('.result-item[data-url]').forEach(item => {
+    item.addEventListener('click', () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+        chrome.tabs.update(tab.id, { url: item.dataset.url });
+      });
+    });
+  });
+}
 
 // ── Q&A chat ────────────────────────────────────────────────────
   let qaSessionId = crypto.randomUUID();

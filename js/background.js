@@ -14,7 +14,7 @@ import {
   saveGeminiKey,
   testGeminiConnection,
 } from "./gemini-api.js";
-import { answerEmail, composeEmail, summarizeInbox } from "./ai-features.js";
+import { answerEmail, composeEmail, smartSearchInbox, summarizeInbox } from "./ai-features.js";
 import {
   answerIndexedQuestion,
   clearChunks,
@@ -90,6 +90,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
     case "SEARCH":
       handleSearch(message, sendResponse);
+      break;
+    case "SMART_SEARCH":
+      handleSmartSearch(message, sendResponse);
       break;
     case "QA":
       handleQA(message, sendResponse);
@@ -211,6 +214,15 @@ async function handleSearch({ query, filter }, sendResponse) {
 
   } catch (err) {
     sendResponse({ ok: false, error: err.message, code: err.code || "GRAPH_ERROR" });
+  }
+}
+
+async function handleSmartSearch({ query }, sendResponse) {
+  try {
+    if (!query || !query.trim()) return sendResponse({ ok: false, error: "Describe the email you want to find." });
+    sendResponse({ ok: true, ...(await smartSearchInbox(query.trim())) });
+  } catch (err) {
+    sendResponse({ ok: false, error: err.message, code: err.code || "AI_ERROR" });
   }
 }
 
