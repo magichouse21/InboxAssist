@@ -13,6 +13,131 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const send = (message) => new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
 
+  // Added for save state
+const SAVE_STATE_KEY = 'inboxAssistPopupState';
+
+// Added for save state
+function saveState() {
+  const state = {
+    activeTabId: document.querySelector('.tab-item.active')?.dataset.target || null,
+
+    summaryHtml: document.getElementById('summary-output')?.innerHTML || '',
+    summaryBullets: document.getElementById('toggle-bullets')?.checked || false,
+
+    searchMode,
+    searchQuery: document.getElementById('search-input')?.value || '',
+    searchFilter: document.querySelector('#keyword-search-filters .filter-chip.active')?.dataset.filter || 'all',
+    searchResultsHtml: document.getElementById('search-results')?.innerHTML || '',
+
+    qaSessionId,
+    qaIsNewSession,
+    qaEmailContent,
+    qaInputValue: qaInput?.value || '',
+    qaChatHtml: chatWin?.innerHTML || ''
+  };
+
+  chrome.storage.session.set({
+    [SAVE_STATE_KEY]: state
+  });
+}
+
+// Added for save state
+function restoreState() {
+  chrome.storage.session.get(SAVE_STATE_KEY, (stored) => {
+    const state = stored?.[SAVE_STATE_KEY];
+
+    if (!state) return;
+
+    // Restore active tab
+    if (state.activeTabId) {
+      tabItems.forEach(tab => {
+        tab.classList.toggle(
+          'active',
+          tab.dataset.target === state.activeTabId
+        );
+      });
+
+      views.forEach(view => {
+        view.classList.toggle(
+          'active',
+          view.id === state.activeTabId
+        );
+      });
+    }
+
+    // Restore summary
+    const summaryOutput = document.getElementById('summary-output');
+
+    if (summaryOutput && state.summaryHtml) {
+      summaryOutput.innerHTML = state.summaryHtml;
+    }
+
+    const bullets = document.getElementById('toggle-bullets');
+
+    if (bullets) {
+      bullets.checked = Boolean(state.summaryBullets);
+    }
+
+    // Restore search
+    searchMode = state.searchMode || 'smart';
+
+    document.querySelectorAll('.search-mode-row .filter-chip').forEach(chip => {
+      chip.classList.toggle(
+        'active',
+        chip.dataset.searchMode === searchMode
+      );
+    });
+
+    keywordFilters.hidden = searchMode !== 'keyword';
+
+    searchButton.textContent =
+      searchMode === 'smart'
+        ? 'Find Best Matches'
+        : 'Search Inbox';
+
+    const searchInput = document.getElementById('search-input');
+
+    if (searchInput) {
+      searchInput.value = state.searchQuery || '';
+    }
+
+    document.querySelectorAll('#keyword-search-filters .filter-chip').forEach(chip => {
+      chip.classList.toggle(
+        'active',
+        chip.dataset.filter === state.searchFilter
+      );
+    });
+
+    const searchResults = document.getElementById('search-results');
+
+    if (searchResults && state.searchResultsHtml) {
+      searchResults.innerHTML = state.searchResultsHtml;
+
+      searchResults.querySelectorAll('.result-item[data-url]').forEach(item => {
+        item.addEventListener('click', () => {
+          chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+            chrome.tabs.update(tab.id, { url: item.dataset.url });
+          });
+        });
+      });
+    }
+
+    // Restore Q&A
+    qaSessionId = state.qaSessionId || crypto.randomUUID();
+    qaIsNewSession = state.qaIsNewSession ?? true;
+    qaEmailContent = state.qaEmailContent || '';
+
+    if (qaInput) {
+      qaInput.value = state.qaInputValue || '';
+    }
+
+    if (chatWin && state.qaChatHtml) {
+      chatWin.innerHTML = state.qaChatHtml;
+      chatWin.scrollTop = chatWin.scrollHeight;
+    }
+  });
+}
+
   function renderConnection(result) {
     const connected = result?.status === 'connected';
     const expired = result?.status === 'reauthentication_required';
@@ -66,6 +191,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       tab.classList.add('active');
       document.getElementById(targetId)?.classList.add('active');
+
+      // changed for save state - Save the selected tab whenever the user switches views.
+      saveState();
     });
   });
 
@@ -75,6 +203,9 @@ document.addEventListener('DOMContentLoaded', () => {
       chip.addEventListener('click', () => {
         row.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
+
+        // changed for save state - Save the active filter chip whenever a filter changes.
+        saveState();
       });
     });
   });
@@ -89,6 +220,9 @@ document.addEventListener('DOMContentLoaded', () => {
       chip.classList.add('active');
       keywordFilters.hidden = searchMode !== 'keyword';
       searchButton.textContent = searchMode === 'smart' ? 'Find Best Matches' : 'Search Inbox';
+
+      // changed for save state - Save Smart or Keyword mode whenever the user changes it.
+      saveState();
     });
   });
 
@@ -98,6 +232,8 @@ document.addEventListener('DOMContentLoaded', () => {
       chip.addEventListener('click', () => {
         group.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
+
+        
       });
     });
   });
@@ -117,6 +253,9 @@ document.addEventListener('DOMContentLoaded', () => {
         message.textContent = ok ? result : error;
         if (!ok) message.style.color = 'red';
         output.appendChild(message);
+
+        // changed for save state - Save the completed summary so it remains after switching tabs or reopening the popup.
+        saveState();
       }
     );
   });
@@ -160,6 +299,10 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
 
       if (!emails || emails.length === 0) {
         results.innerHTML = `<div class="output-placeholder"><p>No results found.</p></div>`;
+
+        // changed for save state - Save the empty search result state.
+        saveState();
+
         return;
       }
 
@@ -179,8 +322,12 @@ document.getElementById('btn-search')?.addEventListener('click', () => {
           chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
             chrome.tabs.update(tab.id, { url: item.dataset.url });
           });
+          
         });
       });
+
+      // changed for save state - Save the rendered search results and current query.
+      saveState();
     }
   );
 });
@@ -194,6 +341,10 @@ function renderSmartResults(results, matches) {
     message.textContent = 'No strong matches found. Try adding a person, topic, or approximate date.';
     empty.appendChild(message);
     results.appendChild(empty);
+
+    // changed for save state - Save the empty Smart Search result state.
+    saveState();  
+
     return;
   }
   matches.forEach((match) => {
@@ -234,6 +385,9 @@ function renderSmartResults(results, matches) {
       });
     });
   });
+
+  // changed for save state - Save rendered Smart Search results.
+  saveState();
 }
 
 // ── Q&A chat ────────────────────────────────────────────────────
@@ -244,10 +398,9 @@ function renderSmartResults(results, matches) {
   const qaBtn    = document.getElementById('btn-qa-send');
   const chatWin  = document.getElementById('chat-window');
 
+  // changed for save state - Do not create a new Q&A session every time the user switches back to the Q&A tab.
   document.querySelector('[data-target="view-qa"]')?.addEventListener('click', () => {
-    qaSessionId    = crypto.randomUUID();
-    qaIsNewSession = true;
-    qaEmailContent = '';
+  saveState();
   });
 
   qaBtn?.addEventListener('click', sendQA);
@@ -255,12 +408,25 @@ function renderSmartResults(results, matches) {
     if (e.key === 'Enter') sendQA();
   });
 
+  // Added for save state
+  document.getElementById('search-input')?.addEventListener('input', saveState);
+
+  // Added for save state
+  document.getElementById('toggle-bullets')?.addEventListener('change', saveState);
+
+  // Added for save state
+  qaInput?.addEventListener('input', saveState);
+
   function sendQA() {
     const text = qaInput?.value.trim();
     if (!text) return;
 
     appendBubble('user', text);
     qaInput.value = '';
+
+    // changed for save state - Save the user's new Q&A message immediately.
+    saveState();
+
     qaInput.disabled = true;
     qaBtn.disabled   = true;
 
@@ -291,11 +457,17 @@ function renderSmartResults(results, matches) {
 
       if (ok) qaIsNewSession = false;
 
+      // changed for save state - Save the assistant response and updated Q&A session state.
+      saveState();
+
       qaInput.disabled = false;
       qaBtn.disabled   = false;
       qaInput.focus();
     });
   }
+
+  // Added for save state
+  restoreState();
 
   function appendBubble(role, text) {
     const bubble = document.createElement('div');
